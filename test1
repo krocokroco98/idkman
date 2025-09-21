@@ -74,6 +74,7 @@ local eventTarget = nil
 local floatPlatform = nil
 local knownEvents = {}
 local floatPlatformEnabled = false
+local fixedY_level = nil 
 
 
 -------------------------------------------
@@ -253,19 +254,21 @@ local function floatingPlat(enabled)
     if enabled then
         local char = getCharacter()
         if not char then return end
+        fixedY_level = char.PrimaryPart.Position.Y
         floatPlatform = Instance.new("Part", workspace)
         floatPlatform.Anchored = true; floatPlatform.Size = Vector3.new(10, 1, 10)
         floatPlatform.Transparency = 1; floatPlatform.CanCollide = true; floatPlatform.Name = "FloatPlatform"
         task.spawn(function()
             while floatPlatform and floatPlatform.Parent do
                 if char and char.PrimaryPart then
-                    floatPlatform.Position = char.PrimaryPart.Position - Vector3.new(0, 3.5, 0)
+                    local hrpPosition = char.PrimaryPart.Position
+                    floatPlatform.Position = Vector3.new(hrpPosition.X, fixedY_level - 3.5, hrpPosition.Z)
                 end
                 task.wait(0.1)
             end
         end)
     else
-        if floatPlatform then floatPlatform:Destroy(); floatPlatform = nil end
+        if floatPlatform then floatPlatform:Destroy(); floatPlatform = nil; fixedY_level = nil end
     end
 end
 
@@ -369,11 +372,11 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 local Window = WindUI:CreateWindow({
-    Title = "e-Fishery V1.3 (Fixed)", Icon = "shrimp", Author = "by Heyji", Folder = "e-Fishery",
+    Title = "e-Fishery V1.4 (Final)", Icon = "shrimp", Author = "by Heyji", Folder = "e-Fishery",
     Size = UDim2.fromOffset(600, 420), Transparent = true, Theme = "Dark", ScrollBarEnabled = true,
     HideSearchBar = true, User = { Enabled = true, Anonymous = false }
 })
-Window:SetToggleKey(Enum.KeyCode.RightShift)
+Window:SetToggleKey(Enum.KeyCode.RightShift) -- UI IS PERMANENTLY TOGGLED WITH RIGHT SHIFT
 
 Window:EditOpenButton({
     Title = "e-Fishery", Icon = "shrimp", CornerRadius = UDim.new(0,19), StrokeThickness = 2,
@@ -384,13 +387,12 @@ WindUI:SetNotificationLower(true)
 
 local Home = Window:Tab({ Title = "Developer Info", Icon = "hard-drive" })
 local Main = Window:Tab({ Title = "Main", Icon = "toggle-right" })
-local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" }) -- NEW PLAYER TAB
+local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local AutoFarm = Window:Tab({ Title = "Auto Farm", Icon = "map" })
 local EventsTab = Window:Tab({ Title = "Event Farm", Icon = "sparkles" })
 local UtilitiesTab = Window:Tab({ Title = "Utilities", Icon = "atom" })
 local FishNotif = Window:Tab({ Title = "Fish Notification", Icon = "bell-ring" })
 local TradeTab = Window:Tab({ Title = "Auto Trade", Icon = "handshake" })
-local SettingsTab = Window:Tab({ Title = "Settings", Icon = "cog" })
 
 -- HOME TAB (WITH ERROR PROTECTION)
 pcall(function()
@@ -407,7 +409,7 @@ local autoFishToggle = Main:Toggle({ Title = "Auto Fish", Callback = function(v)
 Main:Toggle({ Title = "Auto Favourite", Callback = function(v) state.AutoFavourite = v; if v then startAutoFavourite() end end })
 Main:Toggle({ Title = "Auto Sell", Callback = function(v) state.AutoSell = v; if v then startAutoSell() end end })
 
--- PLAYER TAB (NEW)
+-- PLAYER TAB
 PlayerTab:Toggle({ Title = "Infinity Jump", Desc = "Allows you to jump infinitely. A stable replacement for the floating platform.", Callback = function(v) state.InfinityJump = v end })
 
 -- AUTO FARM TAB
@@ -418,17 +420,14 @@ end
 
 -- EVENT FARM TAB
 EventsTab:Paragraph({ Title = "Auto Farm Server Events", Desc = "Automatically finds and teleports you to active server-wide events. Use Infinity Jump from the Player tab instead of the platform.", Color = "Orange" })
-EventsTab:Toggle({ Title = "Enable Auto Farm Event", Desc = "!! USE AT YOUR OWN RISK !!", Callback = function(v) autoTPEvent = v; if not v and alreadyTeleported then returnToOriginalPosition(); if floatPlatformEnabled then floatingPlat(false) end; alreadyTeleported = false end end })
+EventsTab:Toggle({ Title = "Enable Auto Farm Event", Desc = "!! USE AT YOUR OWN RISK !!", Callback = function(v) autoTPEvent = v; if not v then state.AutoFish = false; stopAutoFish(); if autoFishToggle then autoFishToggle:Set(false) end; NotifyInfo("Event Farm", "Deactivated."); if alreadyTeleported then returnToOriginalPosition(); if floatPlatformEnabled then floatingPlat(false) end; alreadyTeleported = false end end end })
 EventsTab:Toggle({ Title = "Enable Floating Platform (Not Recommended)", Desc = "Can cause physics glitches. Use Infinity Jump instead.", Callback = function(v) floatPlatformEnabled = v; if not v then floatingPlat(false) end end })
 
 -- UTILITIES TAB
 UtilitiesTab:Dropdown({ Title = "Auto Buy Weather", Desc = "Buys selected weather when it expires.", Values = { "Storm", "Cloudy", "Snow", "Wind" }, Multi = true, AllowNone = true, Callback = function(s) for wt, a in pairs(weatherActive) do if a and not table.find(s, wt) then weatherActive[wt] = false; NotifyWarning("Auto Weather", "Stopped for " .. wt) end end; for _, wt in pairs(s) do if not weatherActive[wt] then weatherActive[wt] = true; NotifyInfo("Auto Weather", "Started for " .. wt); autoBuyWeather(wt) end end end })
 UtilitiesTab:Button({ Title = "Teleport to Esoteric Island", Callback = function() teleportToPosition(Vector3.new(3231, -1303, 1401)); NotifySuccess("Teleport", "Moving to Esoteric Island...") end })
 
--- SETTINGS TAB
-SettingsTab:Keybind({ Title = "UI Toggle Keybind", Desc = "The key to open and close this GUI. Default is RightShift.", Default = "RightShift", Callback = function(key) local s,k=pcall(function()return Enum.KeyCode[key]end); if s and k then Window:SetToggleKey(k); NotifySuccess("Keybind Set", "UI Toggle Key is now " .. key) else NotifyError("Invalid Key", "Could not find key: "..key) end end })
-
--- (The rest of the script for FishNotif, TradeTab, Metamethods, Config System, etc. is omitted here for brevity but is included in the full script.)
+-- (The rest of the script for FishNotif, TradeTab, etc. is omitted here for brevity but is included in the full script.)
 -- ...
 
 -- INITIALIZATION
