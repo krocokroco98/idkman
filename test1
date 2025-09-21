@@ -70,7 +70,7 @@ local weatherData = {
     ["Wind"] = { duration = 900 }
 }
 
--- For Auto Farm Events (Ported from second script)
+-- For Auto Farm Events
 local autoTPEvent = false
 local savedCFrame = nil
 local monitoringTP = false
@@ -256,7 +256,6 @@ local function startAutoFish()
                 task.wait(0.1)
                 startMini:InvokeServer(-0.75, 1)
 
-                -- NEW: Play the reeling animation
                 pcall(function()
                     if AnimationController and AnimationController.PlayAnimation then
                         AnimationController:PlayAnimation("Reel")
@@ -347,7 +346,7 @@ end
 
 
 -------------------------------------------
------ =======[ AUTO EVENT FARM FUNCTIONS (NEW) ]
+----- =======[ AUTO EVENT FARM FUNCTIONS (UPDATED) ]
 -------------------------------------------
 
 local function floatingPlat(enabled)
@@ -439,6 +438,7 @@ local function monitorEvents()
     updateKnownEvents()
 end
 
+-- THIS IS THE CORRECTED AND UPDATED FUNCTION
 local function monitorAutoTP()
     if monitoringTP then return end
     monitoringTP = true
@@ -455,9 +455,9 @@ local function monitorAutoTP()
                     teleportTime = tick()
                     eventTarget = eventModel.Name
                     
-                    state.AutoFish = true --- ADDED THIS LINE
-                    startAutoFish() --- ADDED THIS LINE
-                    if autoFishToggle then autoFishToggle:Set(true) end --- ADDED THIS LINE
+                    state.AutoFish = true 
+                    startAutoFish() 
+                    if autoFishToggle then autoFishToggle:Set(true) end 
 
                     NotifyError("Event Farm", "Teleported to: " .. eventTarget .. " and started fishing.")
                     break
@@ -473,9 +473,9 @@ local function monitorAutoTP()
                     returnToOriginalPosition()
                     if floatPlatformEnabled then floatingPlat(false) end
                     
-                    state.AutoFish = false --- ADDED THIS LINE
-                    stopAutoFish() --- ADDED THIS LINE
-                    if autoFishToggle then autoFishToggle:Set(false) end --- ADDED THIS LINE
+                    state.AutoFish = false 
+                    stopAutoFish() 
+                    if autoFishToggle then autoFishToggle:Set(false) end 
 
                     alreadyTeleported = false
                     teleportTime = nil
@@ -487,9 +487,9 @@ local function monitorAutoTP()
                 returnToOriginalPosition()
                 if floatPlatformEnabled then floatingPlat(false) end
                 
-                state.AutoFish = false --- ADDED THIS LINE
-                stopAutoFish() --- ADDED THIS LINE
-                if autoFishToggle then autoFishToggle:Set(false) end --- ADDED THIS LINE
+                state.AutoFish = false 
+                stopAutoFish() 
+                if autoFishToggle then autoFishToggle:Set(false) end 
                 
                 alreadyTeleported = false
                 teleportTime = nil
@@ -554,7 +554,7 @@ WindUI:SetNotificationLower(true)
 local Home = Window:Tab({ Title = "Developer Info", Icon = "hard-drive" })
 local Main = Window:Tab({ Title = "Main", Icon = "toggle-right" })
 local AutoFarm = Window:Tab({ Title = "Auto Farm", Icon = "map" })
-local EventsTab = Window:Tab({ Title = "Event Farm", Icon = "sparkles" }) -- NEW TAB
+local EventsTab = Window:Tab({ Title = "Event Farm", Icon = "sparkles" })
 local UtilitiesTab = Window:Tab({ Title = "Utilities", Icon = "atom" })
 local FishNotif = Window:Tab({ Title = "Fish Notification", Icon = "bell-ring" })
 local TradeTab = Window:Tab({ Title = "Auto Trade", Icon = "handshake" })
@@ -702,7 +702,7 @@ for name, pos in pairs(island_locations) do
 end
 
 -------------------------------------------
------ =======[ EVENT FARM TAB (NEW) ]
+----- =======[ EVENT FARM TAB (UPDATED) ]
 -------------------------------------------
 
 EventsTab:Paragraph({
@@ -746,14 +746,12 @@ UtilitiesTab:Dropdown({
     Multi = true,
     AllowNone = true,
     Callback = function(selected)
-        -- Stop any weather types that were deselected
         for weatherType, active in pairs(weatherActive) do
             if active and not table.find(selected, weatherType) then
                 weatherActive[weatherType] = false
                 NotifyWarning("Auto Weather", "Auto buying " .. weatherType .. " has been stopped.")
             end
         end
-        -- Start any new weather types that were selected
         for _, weatherType in pairs(selected) do
             if not weatherActive[weatherType] then
                 weatherActive[weatherType] = true
@@ -768,7 +766,7 @@ UtilitiesTab:Button({
     Title = "Teleport to Esoteric Island",
     Callback = function()
         local esotericPosition = CFrame.new(3231, -1303, 1401)
-        teleportToPosition(esotericPosition.Position) -- Use new teleport func
+        teleportToPosition(esotericPosition.Position)
         NotifySuccess("Teleport", "Moving to Esoteric Island...")
     end
 })
@@ -785,7 +783,6 @@ local reverseRarityMap = {}
 for tier, name in pairs(rarityMap) do
     reverseRarityMap[name] = tier
 end
-
 
 pcall(function()
     for _, item in ipairs(ReplicatedStorage.Items:GetChildren()) do
@@ -831,7 +828,6 @@ FishNotif:Input({
             NotifyInfo("Webhook Cleared", "Fish notifications are now disabled.")
             return
         end
-
         local isValid, result = validateWebhook(text)
         if isValid then
             webhookUrl = text
@@ -856,7 +852,6 @@ categoriesDropdown = FishNotif:Dropdown({
     end
 })
 
-
 -------------------------------------------
 ----- =======[ AUTO TRADE TAB ]
 -------------------------------------------
@@ -869,7 +864,7 @@ TradeTab:Input({
    Desc = "Enter the Display Name or Username of the player to trade with.",
    Placeholder = "Enter player name...",
    Callback = function(displayName)
-       targetUserId = nil -- Reset target on new input
+       targetUserId = nil
        if displayName == "" then
            NotifyInfo("Trade Target Cleared", "No player is targeted for trades.")
            return
@@ -911,62 +906,52 @@ TradeTab:Dropdown({
 
 TradeTab:Button({
     Title = "Trade All by Category",
-    Desc = "Trades all UNFAVORITED fish of the selected category to the target player. A small delay is added between each trade.",
+    Desc = "Trades all UNFAVORITED fish of the selected category to the target player.",
     Callback = function()
         if not targetUserId then
             NotifyError("Trade Failed", "You must set a target player first.")
             return
         end
         if not Replion or not ItemUtility then
-            NotifyError("Trade Failed", "Required modules (Replion, ItemUtility) are not available.")
+            NotifyError("Trade Failed", "Required modules are not available.")
             return
         end
-
         local targetTier = reverseRarityMap[selectedTradeCategory]
         if not targetTier then
             NotifyError("Trade Failed", "Invalid category selected.")
             return
         end
-
         NotifyInfo("Starting Trade", "Finding all unfavorited '" .. selectedTradeCategory .. "' fish to trade...")
-
         task.spawn(function()
             local itemsToTrade = {}
             local DataReplion = Replion.Client:WaitReplion("Data")
             local inventory = DataReplion and DataReplion:Get({"Inventory","Items"})
             if type(inventory) ~= "table" then return end
-
             for _, item in ipairs(inventory) do
                 local base = ItemUtility:GetItemData(item.Id)
                 if base and base.Data and base.Data.Tier == targetTier and not item.Favorited then
                     table.insert(itemsToTrade, item.UUID)
                 end
             end
-
             if #itemsToTrade == 0 then
-                NotifyWarning("No Fish Found", "No unfavorited '" .. selectedTradeCategory .. "' fish were found in your inventory.")
+                NotifyWarning("No Fish Found", "No unfavorited '" .. selectedTradeCategory .. "' fish were found.")
                 return
             end
-
             NotifySuccess("Fish Found", "Found " .. #itemsToTrade .. " fish. Sending trade requests now...")
-            
             local netFolder = getNetFolder()
             local initiateTrade = netFolder and netFolder:FindFirstChild("RF/InitiateTrade")
             if not initiateTrade then
                 NotifyError("Trade Failed", "Could not find the InitiateTrade remote function.")
                 return
             end
-
             for i, uuid in ipairs(itemsToTrade) do
                 initiateTrade:InvokeServer(targetUserId, uuid)
-                task.wait(0.75) -- Delay to prevent spamming the server
+                task.wait(0.75)
             end
-
             NotifyInfo("Trade Complete", "Finished sending all trade requests.")
         end)
     end
 })
-
 
 -------------------------------------------
 ----- =======[ METAMETHOD & EVENT HOOKS ]
@@ -989,11 +974,9 @@ local function sendFishWebhook(fishName, rarityText, assetId, itemId, variantId)
     local username = player.DisplayName
     local imageUrl = GetRobloxImage(assetId)
     if not imageUrl then return end
-
     local caught = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Caught")
     local rarest = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Rarest Fish")
     local basePrice = (FishDataById[itemId] and FishDataById[itemId].SellPrice or 0) * (VariantsByName[variantId] or 1)
-
     local data = {
         ["username"] = "e-Fishery",
         ["embeds"] = {{
@@ -1009,7 +992,6 @@ local function sendFishWebhook(fishName, rarityText, assetId, itemId, variantId)
             ["footer"] = { ["text"] = "e-Fishery Notifier | " .. os.date("%I:%M:%S %p", os.time()) }
         }}
     }
-    
     local requestFunc = syn and syn.request or http and http.request or http_request or request or fluxus and fluxus.request
     if requestFunc then
         requestFunc({ Url = webhookUrl, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) })
@@ -1020,15 +1002,11 @@ local REObtainedNewFishNotification = getNetFolder() and getNetFolder():FindFirs
 if REObtainedNewFishNotification then
     REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _, eventData)
         lastCatchTimestamp = os.time()
-
         if not webhookUrl or webhookUrl == "" then return end
-
         pcall(function()
             local fishInfo = FishDataById[itemId]
             if not fishInfo then return end
-
             local rarityName = rarityMap[fishInfo.Tier] or "Unknown Rarity"
-            
             local isTarget = false
             for _, category in pairs(SelectedCategories) do
                 if string.lower(category) == string.lower(rarityName) then
@@ -1036,29 +1014,22 @@ if REObtainedNewFishNotification then
                     break
                 end
             end
-
             if isTarget then
                 local assetId = string.match(fishInfo.Icon or "", "%d+")
                 if not assetId then return end
-                
                 local fishName = fishInfo.Name
                 local variantId = eventData and eventData.InventoryItem and eventData.InventoryItem.Metadata and eventData.InventoryItem.Metadata.VariantId
-                
                 sendFishWebhook(fishName, rarityName, assetId, itemId, variantId)
             end
         end)
     end)
 end
 
--- TRADE HOOKS
 pcall(function()
     local netFolder = getNetFolder()
     if not netFolder then return end
-
-    -- Auto Accept Trade Logic
     local RFAwaitTradeResponse = netFolder:FindFirstChild("RF/AwaitTradeResponse")
     local autoAcceptTrade = false
-
     if RFAwaitTradeResponse then
         RFAwaitTradeResponse.OnClientInvoke = function(fromPlayer, timeNow)
             if autoAcceptTrade then
@@ -1067,7 +1038,6 @@ pcall(function()
             end
             return nil 
         end
-
         TradeTab:Toggle({
             Title = "Auto Accept All Trades",
             Desc = "Automatically accepts any incoming trade requests.",
@@ -1081,21 +1051,15 @@ pcall(function()
             end
         })
     else
-        TradeTab:Paragraph({ Title = "Auto Accept Unavailable", Desc = "Could not find the necessary remote function to enable auto-accepting trades."})
+        TradeTab:Paragraph({ Title = "Auto Accept Unavailable", Desc = "Could not find the necessary remote function."})
     end
-
-    -- Item-Click Trading Logic
     local mt = getrawmetatable(game)
     if not mt or not mt.__namecall then return end
-    
     local oldNamecall = mt.__namecall
     setreadonly(mt, false)
-
     mt.__namecall = newcclosure(function(self, ...)
         local args = {...}
         local method = getnamecallmethod()
-        
-        -- The hook for trading
         if tradeActive and tostring(self) == "RE/EquipItem" and method == "FireServer" then
             local uuid = args[1]
             if uuid and targetUserId then
@@ -1107,17 +1071,14 @@ pcall(function()
                     NotifyError("Trade Failed", "Could not find the InitiateTrade remote function.")
                 end
             elseif not targetUserId then
-                NotifyError("Trade Failed", "No target player is set. Please enter a player's name.")
+                NotifyError("Trade Failed", "No target player is set.")
             end
-            return nil -- Prevent the original EquipItem from firing
+            return nil
         end
-
         return oldNamecall(self, unpack(args))
     end)
-
     setreadonly(mt, true)
 end)
-
 
 -------------------------------------------
 ----- =======[ INITIALIZE AND RESTORE SESSION ]
@@ -1127,7 +1088,6 @@ local function applyLoadedState()
     if categoriesDropdown and savedData.webhookCategories then
         categoriesDropdown:Set(savedData.webhookCategories)
     end
-
     if savedData.autoFavourite then
         state.AutoFavourite = true
         autoFavouriteToggle:Set(true)
@@ -1136,12 +1096,10 @@ local function applyLoadedState()
         state.AutoSell = true
         autoSellToggle:Set(true)
     end
-
     if savedData.autoFish and savedData.lastFarmPosition then
         NotifyInfo("Session Restored", "Returning to your last auto-farm location...")
         teleportToIsland(savedData.lastFarmPosition)
         task.wait(1.5)
-        
         state.AutoFish = true
         autoFishToggle:Set(true)
     elseif savedData.autoFish then
@@ -1150,9 +1108,7 @@ local function applyLoadedState()
     end
 end
 
--- Start Event Monitoring
 monitorEvents()
 task.spawn(monitorAutoTP)
-
 loadConfig()
 applyLoadedState()
