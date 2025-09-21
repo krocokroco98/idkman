@@ -454,30 +454,43 @@ local function monitorAutoTP()
                     alreadyTeleported = true
                     teleportTime = tick()
                     eventTarget = eventModel.Name
-                    NotifyError("Event Farm", "Teleported to: " .. eventTarget)
+                    
+                    state.AutoFish = true --- ADDED THIS LINE
+                    startAutoFish() --- ADDED THIS LINE
+                    if autoFishToggle then autoFishToggle:Set(true) end --- ADDED THIS LINE
+
+                    NotifyError("Event Farm", "Teleported to: " .. eventTarget .. " and started fishing.")
                     break
                 end
             else
-                if teleportTime and (tick() - teleportTime >= 900) then -- 15 minute timeout
+                if (teleportTime and (tick() - teleportTime >= 900)) or (eventTarget and not isEventStillActive(eventTarget)) then
+                    if eventTarget then
+                        NotifyInfo("Event Ended", "Returning to start position.")
+                    else
+                        NotifyInfo("Event Timeout", "Returned after 15 minutes.")
+                    end
+
                     returnToOriginalPosition()
                     if floatPlatformEnabled then floatingPlat(false) end
+                    
+                    state.AutoFish = false --- ADDED THIS LINE
+                    stopAutoFish() --- ADDED THIS LINE
+                    if autoFishToggle then autoFishToggle:Set(false) end --- ADDED THIS LINE
+
                     alreadyTeleported = false
                     teleportTime = nil
                     eventTarget = nil
-                    NotifyInfo("Event Timeout", "Returned after 15 minutes.")
-                elseif eventTarget and not isEventStillActive(eventTarget) then
-                    returnToOriginalPosition()
-                    if floatPlatformEnabled then floatingPlat(false) end
-                    alreadyTeleported = false
-                    teleportTime = nil
-                    eventTarget = nil
-                    NotifyInfo("Event Ended", "Returned to start position.")
                 end
             end
         else
             if alreadyTeleported then
                 returnToOriginalPosition()
                 if floatPlatformEnabled then floatingPlat(false) end
+                
+                state.AutoFish = false --- ADDED THIS LINE
+                stopAutoFish() --- ADDED THIS LINE
+                if autoFishToggle then autoFishToggle:Set(false) end --- ADDED THIS LINE
+                
                 alreadyTeleported = false
                 teleportTime = nil
                 eventTarget = nil
