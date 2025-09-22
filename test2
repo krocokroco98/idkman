@@ -379,7 +379,6 @@ local AutoFarm = Window:Tab({ Title = "Auto Farm", Icon = "map" })
 local UtilitiesTab = Window:Tab({ Title = "Utilities", Icon = "atom" })
 local FishNotif = Window:Tab({ Title = "Fish Notification", Icon = "bell-ring" })
 local TradeTab = Window:Tab({ Title = "Auto Trade", Icon = "handshake" })
-local EventFarm = Window:Tab({ Title = "Event Farm", Icon = "star" })
 
 -------------------------------------------
 ----- =======[ HOME / DEVELOPER INFO TAB ]
@@ -487,6 +486,142 @@ autoSellToggle = Main:Toggle({
         saveConfig()
     end
 })
+
+-- Location: Paste this to replace the old Events Tab code block.
+
+-------------------------------------------
+----- =======[ EVENTS TAB CODE (v2) ]
+-------------------------------------------
+local floatPlatform = nil
+local autoTPEvent = false
+local savedCFrame = nil
+local monitoringTP = false
+local alreadyTeleported = false
+local teleportTime = nil
+local eventTargetName = nil
+
+local eventCodes = {
+    ["1"] = "Ghost Shark Hunt",
+    ["2"] = "Shark Hunt",
+    ["3"] = "Worm Hunt",
+    ["4"] = "Black Hole",
+    ["5"] = "Meteor Rain",
+    ["6"] = "Ghost Worm",
+    ["7"] = "Shocked"
+}
+
+local function floatingPlat(enabled)
+    if enabled then
+        if floatPlatform then return end -- Don't create if it already exists
+        local char = player.Character
+        if not char then return end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        floatPlatform = Instance.new("Part")
+        floatPlatform.Anchored = true
+        floatPlatform.Size = Vector3.new(10, 1, 10)
+        floatPlatform.Transparency = 1
+        floatPlatform.CanCollide = true
+        floatPlatform.Name = "e_fishery_FloatPlatform"
+        floatPlatform.Parent = workspace
+
+        task.spawn(function()
+            while floatPlatform and floatPlatform.Parent do
+                pcall(function()
+                    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        floatPlatform.Position = player.Character.HumanoidRootPart.Position - Vector3.new(0, 3.5, 0)
+                    end
+                end)
+                task.wait(0.1)
+            end
+        end)
+    else
+        if floatPlatform then
+            floatPlatform:Destroy()
+            floatPlatform = nil
+        end
+    end
+end
+
+local function saveOriginalPosition()
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        savedCFrame = player.Character.HumanoidRootPart.CFrame
+    end
+end
+
+local function returnToOriginalPosition()
+    if savedCFrame then
+        teleportTo(savedCFrame)
+    end
+end
+
+local function isEventStillActive(name)
+    local props = workspace:FindFirstChild("Props")
+    return props and props:FindFirstChild(name)
+end
+
+local function monitorAutoTP()
+    if monitoringTP then return end
+    monitoringTP = true
+
+    task.spawn(function()
+        while true do
+            if autoTPEvent then
+                -- Check for an event if we haven't teleported yet
+                if not alreadyTeleported then
+                    local props = workspace:FindFirstChild("Props")
+                    if props then
+                        for _, eventName in pairs(eventCodes) do
+                            local eventModel = props:FindFirstChild(eventName)
+                            if eventModel and eventModel:IsA("Model") and eventModel.PrimaryPart then
+                                saveOriginalPosition()
+                                teleportTo(eventModel:GetPivot() + Vector3.new(0, 5, 0))
+                                floatingPlat(true)
+                                
+                                alreadyTeleported = true
+                                teleportTime = tick()
+                                eventTargetName = eventModel.Name
+                                NotifyInfo("Auto Event", "Teleported to: " .. eventTargetName)
+                                break -- Exit the loop once an event is found and handled
+                            end
+                        end
+                    end
+                else -- Logic for when we are already at an event
+                    -- 15 minute timeout safety net
+                    if teleportTime and (tick() - teleportTime >= 900) then
+                        returnToOriginalPosition()
+                        floatingPlat(false)
+                        alreadyTeleported = false
+                        teleportTime = nil
+                        eventTargetName = nil
+                        NotifyInfo("Event Timeout", "Returned after 15 minutes.")
+                    -- Check if the event has ended (model was removed)
+                    elseif eventTargetName and not isEventStillActive(eventTargetName) then
+                        returnToOriginalPosition()
+                        floatingPlat(false)
+                        alreadyTeleported = false
+                        teleportTime = nil
+                        NotifyInfo("Event Ended", "Returned to start position.")
+                    end
+                end
+            else
+                -- If the feature was disabled while at an event, return the player
+                if alreadyTeleported then
+                    returnToOriginalPosition()
+                    floatingPlat(false)
+                    alreadyTeleported = false
+                    teleportTime = nil
+                    eventTargetName = nil
+                end
+            end
+            task.wait(1)
+        end
+    end)
+end
+
+monitorAutoTP()
 
 -------------------------------------------
 ----- =======[ AUTO FARM TAB ]
@@ -657,19 +792,19 @@ TradeTab:Input({
    Desc = "Enter the Display Name or Username of the player to trade with.",
    Placeholder = "Enter player name...",
    Callback = function(displayName)
-       targetUserId = nil -- Reset target on new input
-       if displayName == "" then
-          NotifyInfo("Trade Target Cleared", "No player is targeted for trades.")
-          return
-       end
-       for _, p in ipairs(Players:GetPlayers()) do
-          if string.lower(p.DisplayName) == string.lower(displayName) or string.lower(p.Name) == string.lower(displayName) then
-              targetUserId = p.UserId
-              NotifySuccess("Trade Target Set", "Targeting " .. p.Name .. " for trades.")
-              return
-          end
-       end
-       NotifyError("Trade Target Not Found", "Could not find a player with that name.", 3)
+      targetUserId = nil -- Reset target on new input
+      if displayName == "" then
+         NotifyInfo("Trade Target Cleared", "No player is targeted for trades.")
+         return
+      end
+      for _, p in ipairs(Players:GetPlayers()) do
+         if string.lower(p.DisplayName) == string.lower(displayName) or string.lower(p.Name) == string.lower(displayName) then
+            targetUserId = p.UserId
+            NotifySuccess("Trade Target Set", "Targeting " .. p.Name .. " for trades.")
+            return
+         end
+      end
+      NotifyError("Trade Target Not Found", "Could not find a player with that name.", 3)
    end,
 })
 
@@ -677,12 +812,12 @@ TradeTab:Toggle({
    Title = "Enable Item-Click Trading",
    Desc = "When enabled, clicking an item in your inventory will send a trade request instead of equipping it.",
    Callback = function(val)
-       tradeActive = val
-       if val then
-          NotifyInfo("Trade Mode Activated", "Click an item in your inventory to trade it.")
-       else
-          NotifyWarning("Trade Mode Deactivated", "Item-click trading is now off.")
-       end
+      tradeActive = val
+      if val then
+         NotifyInfo("Trade Mode Activated", "Click an item in your inventory to trade it.")
+      else
+         NotifyWarning("Trade Mode Deactivated", "Item-click trading is now off.")
+      end
    end,
 })
 
@@ -754,182 +889,6 @@ TradeTab:Button({
         end)
     end
 })
-
-
--------------------------------------------
------ =======[ EVENT FARM TAB ]
--------------------------------------------
-
-local floatPlatform = nil
-local autoTPEvent = false
-local savedCFrame = nil
-local monitoringTP = false
-local alreadyTeleported = false
-local teleportTime = nil
-local eventTarget = nil
-local knownEvents = {}
-
--- Function to create a floating platform under the player
-local function floatingPlat(enabled)
-    if enabled then
-        if floatPlatform then return end -- Don't create if it exists
-        local char = player.Character or player.CharacterAdded:Wait()
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        floatPlatform = Instance.new("Part")
-        floatPlatform.Anchored = true
-        floatPlatform.Size = Vector3.new(10, 1, 10)
-        floatPlatform.Transparency = 1
-        floatPlatform.CanCollide = true
-        floatPlatform.Name = "FloatPlatform"
-        floatPlatform.Parent = workspace
-
-        task.spawn(function()
-            while floatPlatform and floatPlatform.Parent do
-                pcall(function()
-                    if hrp and hrp.Parent then
-                        floatPlatform.Position = hrp.Position - Vector3.new(0, 3.5, 0)
-                    else
-                        floatPlatform:Destroy()
-                        floatPlatform = nil
-                    end
-                end)
-                task.wait(0.1)
-            end
-        end)
-    else
-        if floatPlatform then
-            floatPlatform:Destroy()
-            floatPlatform = nil
-        end
-    end
-end
-
--- Teleport function specifically for events
-local function teleportToEvent(position)
-    local char = player.Character or player.CharacterAdded:Wait()
-    if char then
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = CFrame.new(position + Vector3.new(0, 10, 0))
-        end
-    end
-end
-
--- Functions to manage and monitor in-game events
-local function updateKnownEvents()
-    knownEvents = {}
-    local props = workspace:FindFirstChild("Props")
-    if props then
-        for _, child in ipairs(props:GetChildren()) do
-            if child:IsA("Model") and child.PrimaryPart then
-                knownEvents[child.Name:lower()] = child
-            end
-        end
-    end
-end
-
-local function monitorEvents()
-    local props = workspace:WaitForChild("Props", 20)
-    if not props then return end
-
-    props.ChildAdded:Connect(function() task.wait(0.3); updateKnownEvents() end)
-    props.ChildRemoved:Connect(function() task.wait(0.3); updateKnownEvents() end)
-    updateKnownEvents()
-end
-
--- Functions to save and return to the player's original position
-local function saveOriginalPosition()
-    local char = player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        savedCFrame = char.HumanoidRootPart.CFrame
-    end
-end
-
-local function returnToOriginalPosition()
-    if savedCFrame then
-        local char = player.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            char.HumanoidRootPart.CFrame = savedCFrame
-        end
-        savedCFrame = nil
-    end
-end
-
-local function isEventStillActive(name)
-    updateKnownEvents()
-    return knownEvents[name:lower()] ~= nil
-end
-
--- Main loop to handle automatic teleporting
-local function monitorAutoTP()
-    if monitoringTP then return end
-    monitoringTP = true
-
-    task.spawn(function()
-        while true do
-            if autoTPEvent then
-                if not alreadyTeleported then
-                    updateKnownEvents()
-                    for _, eventModel in pairs(knownEvents) do
-                        saveOriginalPosition()
-                        teleportToEvent(eventModel:GetPivot().Position)
-                        floatingPlat(true)
-                        alreadyTeleported = true
-                        teleportTime = tick()
-                        eventTarget = eventModel.Name
-                        NotifyInfo("Event Farm", "Teleported to: " .. eventTarget)
-                        break
-                    end
-                else
-                    if (teleportTime and (tick() - teleportTime >= 900)) or (eventTarget and not isEventStillActive(eventTarget)) then
-                        returnToOriginalPosition()
-                        floatingPlat(false)
-                        alreadyTeleported = false
-                        teleportTime = nil
-                        NotifySuccess("Event Ended", "Returned to original position.")
-                        eventTarget = nil
-                    end
-                end
-            else
-                if alreadyTeleported then
-                    returnToOriginalPosition()
-                    floatingPlat(false)
-                    alreadyTeleported = false
-                    teleportTime = nil
-                    eventTarget = nil
-                end
-            end
-            task.wait(1)
-        end
-    end)
-end
-
--- UI Toggle for the new tab
-EventFarm:Toggle({
-    Title = "Auto Farm Event",
-    Desc = "Automatically teleports to active world events. Use at your own risk.",
-    Callback = function(state)
-        autoTPEvent = state
-        if state then
-            NotifySuccess("Event Farm", "Searching for active events...")
-        else
-            NotifyWarning("Event Farm", "Disabled.")
-        end
-    end
-})
-
-EventFarm:Divider()
-EventFarm:Paragraph({
-    Title = "How it Works",
-    Desc = "When enabled, this feature will constantly scan for world events like Shark Hunts or Meteor Showers. If an event is found, it will automatically teleport you to it and create a platform to stand on. It will return you to your original spot when the event ends."
-})
-
-
--- Start the background monitoring
-monitorEvents()
-monitorAutoTP()
 
 
 -------------------------------------------
