@@ -1,1 +1,81 @@
 
+-- Creates a small, draggable display to show the current world event.
+
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Create the UI to display the event status
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EventDetectorGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.fromOffset(250, 40)
+mainFrame.Position = UDim2.fromOffset(10, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+mainFrame.BorderColor3 = Color3.fromRGB(80, 80, 120)
+mainFrame.BorderSizePixel = 2
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, 0, 0, 20)
+titleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+titleLabel.BorderColor3 = Color3.fromRGB(80, 80, 120)
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Text = "Current Event"
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 14
+titleLabel.Parent = mainFrame
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "StatusLabel"
+statusLabel.Size = UDim2.new(1, -10, 0, 20)
+statusLabel.Position = UDim2.fromOffset(5, 20)
+statusLabel.BackgroundColor3 = Color3.new(0, 0, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(0, 255, 127)
+statusLabel.Text = "Scanning..."
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.TextSize = 16
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+-- The core detection logic
+local function check_for_events()
+    local propsFolder = workspace:FindFirstChild("Props")
+    if not propsFolder then
+        statusLabel.Text = "Waiting for game..."
+        statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0) -- Yellow
+        return
+    end
+
+    local foundEvent = nil
+    for _, potentialEvent in ipairs(propsFolder:GetChildren()) do
+        -- Check if the item is a model and contains the key "Fishing Boat" child
+        if potentialEvent:IsA("Model") and potentialEvent:FindFirstChild("Fishing Boat") then
+            foundEvent = potentialEvent.Name
+            break -- Stop scanning once we find one event
+        end
+    end
+
+    if foundEvent then
+        statusLabel.Text = foundEvent
+        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 127) -- Green
+    else
+        statusLabel.Text = "No active event"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80) -- Red
+    end
+end
+
+-- Run the check every 2 seconds
+task.spawn(function()
+    while task.wait(2) do
+        -- Use a pcall to prevent the script from erroring if the game state is unusual
+        pcall(check_for_events)
+    end
+end)
