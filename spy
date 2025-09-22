@@ -1,4 +1,3 @@
-
 -- Creates a small, draggable display to show the current world event.
 
 local UserInputService = game:GetService("UserInputService")
@@ -45,7 +44,18 @@ statusLabel.TextSize = 16
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = mainFrame
 
--- The core detection logic
+-- This list contains the specific events the script will look for.
+local eventCodes = {
+	["1"] = "Ghost Shark Hunt",
+	["2"] = "Shark Hunt",
+	["3"] = "Worm Hunt",
+	["4"] = "Black Hole",
+	["5"] = "Meteor Rain",
+	["6"] = "Ghost Worm",
+	["7"] = "Shocked"
+}
+
+-- The core detection logic, now using the specific event list
 local function check_for_events()
     local propsFolder = workspace:FindFirstChild("Props")
     if not propsFolder then
@@ -55,11 +65,12 @@ local function check_for_events()
     end
 
     local foundEvent = nil
-    for _, potentialEvent in ipairs(propsFolder:GetChildren()) do
-        -- Check if the item is a model and contains the key "Fishing Boat" child
-        if potentialEvent:IsA("Model") and potentialEvent:FindFirstChild("Fishing Boat") then
-            foundEvent = potentialEvent.Name
-            break -- Stop scanning once we find one event
+    -- Loop through our list of known events
+    for _, eventName in pairs(eventCodes) do
+        local eventModel = propsFolder:FindFirstChild(eventName)
+        if eventModel and eventModel:IsA("Model") then
+            foundEvent = eventName
+            break -- Stop scanning once we find one
         end
     end
 
@@ -79,3 +90,4 @@ task.spawn(function()
         pcall(check_for_events)
     end
 end)
+
