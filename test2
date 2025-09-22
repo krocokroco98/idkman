@@ -85,9 +85,9 @@ local function startAutoSell() local lastSellTime=0; task.spawn(function() while
 local function teleportTo(pos) local char=player.Character or player.CharacterAdded:Wait(); local hrp=char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart"); if hrp then if type(pos) == "table" then hrp.CFrame=pos[math.random(1, #pos)] else hrp.CFrame=pos end end end
 player.CharacterAdded:Connect(function(char) task.wait(2); if state.AutoFish and lastFarmPosition then NotifyInfo("Respawned","Returning to last farm location..."); teleportTo(lastFarmPosition) end end)
 
--- ==========================================
--- =======[ NEW EVENT FARMING LOGIC ]
--- ==========================================
+-- ------------------------------------------ --
+-- -- =======[ NEW EVENT FARMING LOGIC ]-- --
+-- ------------------------------------------ --
 local EVENT_MODELS_FOLDER = "Props"
 local activeEventName = nil
 local floatPlatform, savedCFrame, autoTPEvent, alreadyTeleported, monitoringTP = nil, nil, false, false, false
@@ -144,7 +144,6 @@ local Window = WindUI:CreateWindow({Title="e-Fishery V1",Icon="shrimp",Author="b
 Window:EditOpenButton({Title="e-Fishery",Icon="shrimp",CornerRadius=UDim.new(0,19),StrokeThickness=2,Color=ColorSequence.new(Color3.fromHex("9600FF"),Color3.fromHex("AEBAF8")),Draggable=true})
 Window:Tag({Title="STABLE",Color=Color3.fromHex("#30ff6a")}); WindUI:SetNotificationLower(true)
 
--- CORRECTED TAB DEFINITIONS
 local Home = Window:Tab({ Title = "Developer Info", Icon = "hard-drive" })
 local Main = Window:Tab({ Title = "Main", Icon = "toggle-right" })
 local AutoFarm = Window:Tab({ Title = "Auto Farm", Icon = "map" })
@@ -202,3 +201,13 @@ TradeTab:Toggle({Title="Enable Item-Click Trading",Desc="Clicking an item in you
 -- Start the event listeners
 initializeEventListener()
 monitorAutoTP()
+
+-- Load config and apply state after a delay to ensure UI is ready
+task.wait(1)
+pcall(function()
+    if isfile and isfile("e_fishery_session.json") then 
+        local data = HttpService:JSONDecode(readfile("e_fishery_session.json"))
+        if data.autoFavourite then Main:FindFirstChild("Auto Favourite", true):Set(true) end
+        if data.autoSell then Main:FindFirstChild("Auto Sell", true):Set(true) end
+    end
+end)
