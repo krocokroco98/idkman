@@ -115,6 +115,74 @@ local function NotifyWarning(title, message, duration)
     })
 end
 
+
+------------------------------------------
+------------------------------------------
+
+local HttpService = game:GetService("HttpService")
+
+local RunService = game:GetService("RunService")
+
+
+local pasteURL = "https://raw.githubusercontent.com/quietxhub99/raul/refs/heads/main/update.txt"
+local interval = 30
+
+local kicked = false
+local notified = false
+
+local function checkStatus()
+	local success, result = pcall(function()
+		return game:HttpGet(pasteURL)
+	end)
+
+	if not success or typeof(result) ~= "string" then
+		return
+	end
+
+	local response = result:upper():gsub("%s+", "")
+
+	if response == "LATEST" then
+		if not kicked then
+			kicked = true
+			LocalPlayer:Kick("QuietXHub Premium Update Available!.")
+		end
+	elseif response == "LATEST" then
+		if not notified then
+			notified = true
+			warn("[QuietXHub] Status: Latest version")
+		end
+	else
+		warn("[QuietXHub] Status unknown:", response)
+	end
+end
+
+checkStatus()
+
+task.spawn(function()
+	while not kicked do
+		task.wait(interval)
+		checkStatus()
+	end
+end)
+
+
+local confirmed = false
+WindUI:Popup({
+    Title = "Important!",
+    Icon = "rbxassetid://129260712070622",
+    Content = [[
+Thank you for using Premium script!.
+Dont be a Stealer!
+]],
+    Buttons = {
+        { Title = "Close", Variant = "Secondary", Callback = function() end },
+        { Title = "Next", Variant = "Primary", Callback = function() confirmed = true end },
+    }
+})
+
+repeat task.wait() until confirmed
+
+
 -------------------------------------------
 ----- =======[ LOAD WINDOW ]
 -------------------------------------------
@@ -156,8 +224,6 @@ Window:Tag({
     Title = "STABLE",
     Color = Color3.fromHex("#30ff6a")
 })
-
-
 
 local ConfigManager = Window.ConfigManager
 local myConfig = ConfigManager:CreateConfig("QuietXConfig")
@@ -1137,8 +1203,6 @@ Trade:Toggle({
 -------------------------------------------
 
 
-
-
 local currentDropdown = nil
 
 local function getPlayerList()
@@ -1849,7 +1913,6 @@ for _, npc in pairs(npcFolder:GetChildren()) do
 	end
 end
 
-
 Utils:Dropdown({
 	Title = "NPC",
 	Desc = "Select NPC to Teleport",
@@ -2131,12 +2194,16 @@ SettingsTab:Button({
 	end
 })
 
+[[
+
 SettingsTab:Button({
 	Title = "HDR Shader",
 	Callback = function()
 		loadstring(game:HttpGet("https://paste.monster/IVE9Xt3YJWkp/raw/"))()
 	end,
 })
+
+]]
 
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
@@ -2147,6 +2214,7 @@ local function Rejoin()
 		TeleportService:Teleport(game.PlaceId, player)
 	end
 end
+
 
 local function ServerHop()
 	local placeId = game.PlaceId
