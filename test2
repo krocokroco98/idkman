@@ -204,6 +204,7 @@ local function playCastAnim()
 end
 
 local function startAutoFish()
+    state.AutoFish = true
     activateFpsBoost()
     if autoFishLoop then task.cancel(autoFishLoop) end
     if respawnTimerLoop then task.cancel(respawnTimerLoop) end
@@ -321,7 +322,7 @@ end
 -------------------------------------------
 player.CharacterAdded:Connect(function(character)
     task.wait(2)
-    if state.AutoFish and lastFarmPosition then
+    if isAutoFarmRunning and lastFarmPosition then
         NotifyInfo("Respawn Detected", "Returning to last farm location...")
         teleportTo(lastFarmPosition)
     end
@@ -410,7 +411,6 @@ end
 -------------------------------------------
 local savedData = {
     webhookUrl = "",
-    autoFish = false,
     autoFavourite = false,
     autoSell = false,
     webhookCategories = {"Secret"},
@@ -422,7 +422,6 @@ local webhookUrl, SelectedCategories
 local function saveConfig()
     if writefile then
         savedData.webhookUrl = webhookUrl
-        savedData.autoFish = state.AutoFish
         savedData.autoFavourite = state.AutoFavourite
         savedData.autoSell = state.AutoSell
         savedData.webhookCategories = SelectedCategories
@@ -451,19 +450,11 @@ end
 ----- =======[ MAIN TAB ]
 -------------------------------------------
 
-local autoFishToggle, autoFavouriteToggle, autoSellToggle
+Main:Paragraph({Title = "Main Controls", Desc = "The main Auto Farm controls have been moved to the 'Auto Farm' tab for a more integrated experience."})
 
-autoFishToggle = Main:Toggle({
-    Title = "Auto Fish",
-    Callback = function(Value)
-        state.AutoFish = Value
-        if Value then startAutoFish() else stopAutoFish() end
-        saveConfig()
-    end
-})
-
-autoFavouriteToggle = Main:Toggle({
+local autoFavouriteToggle = Main:Toggle({
     Title = "Auto Favourite",
+    Desc = "Automatically favorites Legendary, Mythic, and Secret fish.",
     Callback = function(Value)
         state.AutoFavourite = Value
         if Value then startAutoFavourite() end
@@ -471,8 +462,9 @@ autoFavouriteToggle = Main:Toggle({
     end
 })
 
-autoSellToggle = Main:Toggle({
-    Title = "Auto Sell",
+local autoSellToggle = Main:Toggle({
+    Title = "Auto Sell (Legacy)",
+    Desc = "Sells unfavorited items when inventory is full. The new Auto Farm has its own selling system.",
     Callback = function(Value)
         state.AutoSell = Value
         if Value then startAutoSell() end
@@ -484,7 +476,6 @@ autoSellToggle = Main:Toggle({
 ----- =======[ AUTO FARM TAB ]
 -------------------------------------------
 
--- THIS SECTION IS REPLACED
 local floatPlatform = nil
 local autoTPEvent = false
 local savedCFrame = nil
@@ -532,20 +523,31 @@ end
 
 local knownEvents = {}
 local function updateKnownEvents()
+    local eventCount = 0
     knownEvents = {}
     local props = workspace:FindFirstChild("Props")
     if props then
-        for _, child in ipairs(props:GetChildren()) do
+        for _, child in ipairs(props:GetDescendants()) do
             if child:IsA("Model") and child.PrimaryPart then
                 knownEvents[child.Name:lower()] = child
+                eventCount = eventCount + 1
             end
         end
     end
+    -- More frequent, but shorter notification for scanning
+    NotifyInfo("Event Scan", "Found " .. eventCount .. " active events.", 1.5)
+    return eventCount > 0
 end
 
 local function isEventStillActive(name)
-    updateKnownEvents()
-    return knownEvents[name:lower()] ~= nil
+    local props = workspace:FindFirstChild("Props")
+    if not props then return false end
+    for _, child in ipairs(props:GetDescendants()) do
+        if child:IsA("Model") and string.lower(child.Name) == string.lower(name) then
+            return true
+        end
+    end
+    return false
 end
 
 local function saveOriginalPosition()
@@ -557,6 +559,7 @@ end
 local function returnToOriginalPosition()
     if savedCFrame then
         teleportTo(savedCFrame)
+        savedCFrame = nil
     end
 end
 
@@ -565,38 +568,46 @@ local function monitorAutoTP()
     monitoringTP = true
     task.spawn(function()
         while true do
-            if autoTPEvent then
+            if autoTPEvent and not isAutoFarmRunning then
                 if not alreadyTeleported then
-                    updateKnownEvents()
-                    for _, eventModel in pairs(knownEvents) do
-                        saveOriginalPosition()
-                        teleportTo(CFrame.new(eventModel:GetPivot().Position + Vector3.new(0, 10, 0)))
-                        floatingPlat(true)
-                        alreadyTeleported = true
-                        teleportTime = tick()
-                        eventTarget = eventModel.Name
-                        NotifyInfo("Event Farm", "Teleported to: " .. eventTarget)
-                        break
+                    if updateKnownEvents() then
+                        for _, eventModel in pairs(knownEvents) do
+                            saveOriginalPosition()
+                            
+                            -- NEW: More prominent notification with the event name
+                            NotifySuccess("Event Found!", "Teleporting to: " .. eventModel.Name)
+                            
+                            teleportTo(CFrame.new(eventModel:GetPivot().Position + Vector3.new(0, 10, 0)))
+                            floatingPlat(true)
+                            alreadyTeleported = true
+                            teleportTime = tick()
+                            eventTarget = eventModel.Name
+                            startAutoFish()
+                            break
+                        end
                     end
                 else
                     if teleportTime and (tick() - teleportTime >= 900) then
-                        returnToOriginalPosition()
-                        floatingPlat(false)
-                        alreadyTeleported = false
-                        teleportTime = nil
-                        eventTarget = nil
                         NotifyInfo("Event Timeout", "Returned after 15 minutes.")
-                    elseif eventTarget and not isEventStillActive(eventTarget) then
+                        stopAutoFish()
                         returnToOriginalPosition()
                         floatingPlat(false)
                         alreadyTeleported = false
                         teleportTime = nil
                         eventTarget = nil
+                    elseif eventTarget and not isEventStillActive(eventTarget) then
                         NotifyInfo("Event Ended", "Returned to start position.")
+                        stopAutoFish()
+                        returnToOriginalPosition()
+                        floatingPlat(false)
+                        alreadyTeleported = false
+                        teleportTime = nil
+                        eventTarget = nil
                     end
                 end
             else
                 if alreadyTeleported then
+                    stopAutoFish()
                     returnToOriginalPosition()
                     floatingPlat(false)
                     alreadyTeleported = false
@@ -604,17 +615,21 @@ local function monitorAutoTP()
                     eventTarget = nil
                 end
             end
-            task.wait(1)
+            task.wait(3) -- Scan for events every 3 seconds
         end
     end)
 end
 
 local function monitorEvents()
     local props = workspace:WaitForChild("Props", 20)
-    if not props then return end
-    props.ChildAdded:Connect(updateKnownEvents)
-    props.ChildRemoved:Connect(updateKnownEvents)
-    updateKnownEvents()
+    if props then
+        NotifySuccess("Event System", "Successfully hooked into Props folder.")
+        props.ChildAdded:Connect(updateKnownEvents)
+        props.ChildRemoved:Connect(updateKnownEvents)
+        updateKnownEvents()
+    else
+        NotifyError("Event System", "Could not find Props folder after 20 seconds.")
+    end
 end
 
 local farmLocations = {
@@ -658,25 +673,35 @@ local function startAutoFarmLoop()
     task.spawn(function()
         NotifySuccess("Auto Farm Enabled", "Fishing started on island: " .. selectedIsland)
         while isAutoFarmRunning do
-            local islandSpots = farmLocations[selectedIsland]
-            local location = islandSpots[math.random(1, #islandSpots)]
-            
-            teleportTo(location)
-            lastFarmPosition = location
-            task.wait(1.5)
+            if autoTPEvent and alreadyTeleported then
+                NotifyInfo("Auto Farm", "Paused for event...", 2)
+                task.wait(1)
+            else
+                local islandSpots = farmLocations[selectedIsland]
+                local location = islandSpots[math.random(1, #islandSpots)]
+                
+                teleportTo(location)
+                lastFarmPosition = location
+                task.wait(1.5)
 
-            state.AutoFish = true
-            startAutoFish()
+                startAutoFish()
 
-            repeat
-                task.wait(0.5)
-            until #obtainedFishUUIDs >= obtainedLimit or not isAutoFarmRunning
-            
-            if not isAutoFarmRunning then break end
+                repeat
+                    task.wait(0.5)
+                until #obtainedFishUUIDs >= obtainedLimit or not isAutoFarmRunning or (autoTPEvent and #knownEvents > 0)
+                
+                stopAutoFish()
+                if not isAutoFarmRunning then break end
 
-            NotifyInfo("Fish Threshold Reached", "Selling all fishes...")
-            sellItems()
-            task.wait(1)
+                if autoTPEvent and #knownEvents > 0 then
+                    NotifyInfo("Auto Farm", "Event detected, pausing island farm.", 3)
+                    task.wait(1)
+                else
+                    NotifyInfo("Fish Threshold Reached", "Selling all fishes...")
+                    sellItems()
+                    task.wait(1)
+                end
+            end
         end
     end)
 end
@@ -729,7 +754,7 @@ AutoFarm:Toggle({
     Callback = function(state)
         autoTPEvent = state
         if autoTPEvent then
-            NotifyInfo("Event Farm Enabled", "Will now teleport to events.")
+            NotifyInfo("Event Farm Enabled", "Searching for events...")
         else
             NotifyWarning("Event Farm Disabled", "No longer farming events.")
         end
@@ -1122,18 +1147,6 @@ local function applyLoadedState()
     if savedData.autoSell then
         state.AutoSell = true
         autoSellToggle:Set(true)
-    end
-
-    if savedData.autoFish and savedData.lastFarmPosition then
-        NotifyInfo("Session Restored", "Returning to your last auto-farm location...")
-        teleportTo(savedData.lastFarmPosition)
-        task.wait(1.5)
-        
-        state.AutoFish = true
-        autoFishToggle:Set(true)
-    elseif savedData.autoFish then
-       state.AutoFish = true
-       autoFishToggle:Set(true)
     end
 end
 
