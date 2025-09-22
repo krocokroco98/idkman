@@ -50,9 +50,9 @@ local eventCodes = {
 	["2"] = "Shark Hunt",
 	["3"] = "Worm Hunt",
 	["4"] = "Black Hole",
-	["5"] = "Meteor Rain",
+	["5"] = "Only 1 Megalodon",
 	["6"] = "Ghost Worm",
-	["7"] = "Shocked"
+	["7"] = "Megalodon Hunt"
 }
 
 -- The core detection logic, now using the specific event list
