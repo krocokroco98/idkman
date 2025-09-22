@@ -1,554 +1,74 @@
-------------------------------------------
------ =======[ Load WindUI ]
--------------------------------------------
-
-local Version = "1.6.45"
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. Version .. "/main.lua"))()
-
--------------------------------------------
------ =======[ GLOBAL & CORE FUNCTIONS ]
--------------------------------------------
+-- =================================================================
+-- ===================== EVENT TRIGGER SPY SCRIPT ==================
+-- =================================================================
+-- This script's only job is to find how the game announces events.
+-- It does not auto-farm.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
-local player = Players.LocalPlayer
+local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Safe require helper from Rayfield version
-local function safeRequire(pathTbl)
-    local ptr = ReplicatedStorage
-    for _, seg in ipairs(pathTbl) do
-        ptr = ptr:FindFirstChild(seg)
-        if not ptr then return nil end
+print("--- Event Spy Script Activated ---")
+print("Waiting for a world event to start. Watch this console for output.")
+
+-- =======================
+-- Spy #1: Remote Events
+-- =======================
+-- Listen for any signal fired from the server.
+for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+    if v:IsA("RemoteEvent") then
+        v.OnClientEvent:Connect(function(...)
+            local args = {...}
+            print("---------------------------------")
+            warn("REMOTE EVENT FIRED: " .. v:GetFullName())
+            
+            if #args > 0 then
+                print("WITH ARGUMENTS:")
+                for i, arg in ipairs(args) do
+                    print(string.format("  - Arg %d: %s (Type: %s)", i, tostring(arg), typeof(arg)))
+                end
+            else
+                print("Event had no arguments.")
+            end
+            print("---------------------------------")
+        end)
     end
-    local ok, mod = pcall(require, ptr)
-    return ok and mod or nil
 end
 
--- Initialize controllers and utilities
-local FishingController = safeRequire({"Controllers","FishingController"})
-local AnimationController = safeRequire({"Controllers","AnimationController"})
-local Replion = safeRequire({"Packages","Replion"}) or safeRequire({"Packages","replion"})
-local ItemUtility = safeRequire({"Shared","ItemUtility"})
-
--- Net folder helper from Rayfield version
-local function getNetFolder()
-    local packages = ReplicatedStorage:WaitForChild("Packages", 10)
-    if not packages then return nil end
-    local index = packages:FindFirstChild("_Index")
-    if index then
-        for _, child in ipairs(index:GetChildren()) do
-            if child.Name:match("^sleitnick_net@") then
-                return child:FindFirstChild("net")
-            end
-        end
-    end
-    return ReplicatedStorage:FindFirstChild("net") or ReplicatedStorage:FindFirstChild("Net")
-end
-
--- =========================
--- STATE MANAGEMENT
--- =========================
-local state = {
-    AutoFish = false,
-    AutoFavourite = false,
-    AutoSell = false,
-}
-local lastFarmPosition = nil
-local lastCatchTimestamp = 0
-local respawnTimerLoop = nil
-local isAutoFarmRunning = false
-
--- Include Legendary, Mythic, Secret fish
-local allowedTiers = { [5]=true, [6]=true, [7]=true }
-
--- Weather Feature State
-local weatherActive = {}
-local weatherData = {
-    ["Storm"] = { duration = 900 },
-    ["Cloudy"] = { duration = 900 },
-    ["Snow"] = { duration = 900 },
-    ["Wind"] = { duration = 900 }
-}
-
--------------------------------------------
------ =======[ NOTIFY FUNCTION ]
--------------------------------------------
-
-local function NotifySuccess(title, message, duration)
-    WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "circle-check" })
-end
-
-local function NotifyError(title, message, duration)
-    WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "ban" })
-end
-
-local function NotifyInfo(title, message, duration)
-    WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "info" })
-end
-
-local function NotifyWarning(title, message, duration)
-    WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "triangle-alert" })
-end
-
--- =========================
--- FPS BOOST FUNCTION
--- =========================
-local fpsBoostActive = false
-local function activateFpsBoost()
-    if fpsBoostActive then return end
-    pcall(function()
-        for _, v in pairs(game:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.Material = Enum.Material.SmoothPlastic
-                v.Reflectance = 0
-            elseif v:IsA("Decal") or v:IsA("Texture") then
-                v.Transparency = 1
-            end
-        end
-        local Lighting = game:GetService("Lighting")
-        for _, effect in pairs(Lighting:GetChildren()) do
-            if effect:IsA("PostEffect") then effect.Enabled = false end
-        end
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 1e10
-        settings().Rendering.QualityLevel = "Level01"
-    end)
-    NotifyInfo("Performance", "FPS Boost activated for smooth farming.")
-    fpsBoostActive = true
-end
-
--- =========================
--- AUTO FAVOURITE / SELL / FISH
--- =========================
-local function startAutoFavourite()
-    task.spawn(function()
-        while state.AutoFavourite do
-            pcall(function()
-                if not Replion or not ItemUtility then return end
-                local netFolder = getNetFolder()
-                local favoriteRemote = netFolder and netFolder:FindFirstChild("RE/FavoriteItem")
-                if not favoriteRemote then return end
-                local DataReplion = Replion.Client:WaitReplion("Data")
-                local items = DataReplion and DataReplion:Get({"Inventory","Items"})
-                if type(items) ~= "table" then return end
-                for _, item in ipairs(items) do
-                    local base = ItemUtility:GetItemData(item.Id)
-                    if base and base.Data and allowedTiers[base.Data.Tier] and not item.Favorited then
-                        favoriteRemote:FireServer(item.UUID)
-                        item.Favorited = true
+-- =======================
+-- Spy #2: GUI Popups
+-- =======================
+-- Listen for any GUI that appears on screen.
+local function spyOnGui(gui)
+    if not gui:IsA("GuiObject") then return end
+    
+    gui:GetPropertyChangedSignal("Visible"):Connect(function()
+        if gui.Visible then
+            print("---------------------------------")
+            warn("GUI BECAME VISIBLE: " .. gui:GetFullName())
+            print("Child text labels found:")
+            for _, child in pairs(gui:GetDescendants()) do
+                if child:IsA("TextLabel") or child:IsA("TextButton") then
+                    if child.Text and child.Text ~= "" then
+                        print(string.format("  - %s says: '%s'", child.Name, child.Text))
                     end
                 end
-            end)
-            task.wait(5)
-        end
-    end)
-end
-
-local function startAutoSell()
-    task.spawn(function()
-        while state.AutoSell do
-            pcall(function()
-                if not Replion then return end
-                local DataReplion = Replion.Client:WaitReplion("Data")
-                local items = DataReplion and DataReplion:Get({"Inventory","Items"})
-                if type(items) ~= "table" then return end
-                local unfavoritedCount = 0
-                for _, item in ipairs(items) do
-                    if not item.Favorited then
-                        unfavoritedCount = unfavoritedCount + (item.Count or 1)
-                    end
-                end
-                if unfavoritedCount >= 60 and os.time() - (lastSellTime or 0) >= 60 then
-                    local netFolder = getNetFolder()
-                    if netFolder then
-                        local sellFunc = netFolder:FindFirstChild("RF/SellAllItems")
-                        if sellFunc then
-                            task.spawn(sellFunc.InvokeServer, sellFunc)
-                            lastSellTime = os.time()
-                        end
-                    end
-                end
-            end)
-            task.wait(10)
-        end
-    end)
-end
-
-local autoFishLoop
-local function startAutoFish()
-    state.AutoFish = true
-    activateFpsBoost()
-    if autoFishLoop then task.cancel(autoFishLoop) end
-    if respawnTimerLoop then task.cancel(respawnTimerLoop) end
-    lastCatchTimestamp = os.time()
-    respawnTimerLoop = task.spawn(function()
-        while state.AutoFish do
-            if os.time() - lastCatchTimestamp > 60 then
-                NotifyWarning("Anti-Stuck Triggered", "No fish caught in 1 minute. Resetting character...")
-                if player.Character then player.Character:BreakJoints() end
-                lastCatchTimestamp = os.time()
             end
-            task.wait(1)
-        end
-    end)
-    autoFishLoop = task.spawn(function()
-        local net = getNetFolder(); if not net then return end
-        local equipEvent = net:WaitForChild("RE/EquipToolFromHotbar")
-        local chargeFunc = net:WaitForChild("RF/ChargeFishingRod")
-        local startMini  = net:WaitForChild("RF/RequestFishingMinigameStarted")
-        local complete   = net:WaitForChild("RE/FishingCompleted")
-        while state.AutoFish do
-            if FishingController and FishingController.OnCooldown and FishingController:OnCooldown() then
-                repeat task.wait(0.2) until not (FishingController:OnCooldown()) or not state.AutoFish
-            end
-            if not state.AutoFish then break end
-            pcall(function()
-                if AnimationController then AnimationController:PlayAnimation("CastFromFullChargePosition1Hand") end
-                equipEvent:FireServer(1)
-                task.wait(0.1)
-                chargeFunc:InvokeServer(workspace:GetServerTimeNow())
-                task.wait(0.1)
-                startMini:InvokeServer(-0.75, 1)
-                if AnimationController then AnimationController:PlayAnimation("Reel") end
-                task.wait(0.2)
-                for i=1,20 do
-                    complete:FireServer()
-                    task.wait(0.05)
-                end
-            end)
-            local t = os.clock()
-            while os.clock() - t < 0.7 and state.AutoFish do task.wait() end
+            print("---------------------------------")
         end
     end)
 end
 
-local function stopAutoFish()
-    state.AutoFish = false
-    if autoFishLoop then task.cancel(autoFishLoop); autoFishLoop = nil end
-    if respawnTimerLoop then task.cancel(respawnTimerLoop); respawnTimerLoop = nil end
-end
-
--- =========================
--- TELEPORT & RESPAWN
--- =========================
-local function teleportTo(pos)
-    local char = player.Character or player.CharacterAdded:Wait()
-    local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart")
-    if hrp then hrp.CFrame = pos end
-end
-
-player.CharacterAdded:Connect(function(character)
-    task.wait(2)
-    if isAutoFarmRunning and lastFarmPosition then
-        NotifyInfo("Respawn Detected", "Returning to last farm location...")
-        teleportTo(lastFarmPosition)
+PlayerGui.ChildAdded:Connect(function(child)
+    if child:IsA("ScreenGui") then
+        spyOnGui(child) -- Spy on newly added GUIs
+        child.DescendantAdded:Connect(spyOnGui) -- Spy on things added to them later
     end
 end)
 
--------------------------------------------
------ =======[ UI SETUP ]
--------------------------------------------
-local Window = WindUI:CreateWindow({Title = "e-Fishery V1", Icon = "shrimp", Author = "by Heyji", Folder = "e-Fishery", Size = UDim2.fromOffset(600, 400), Transparent = true, Theme = "Dark", KeySystem = false, ScrollBarEnabled = true, HideSearchBar = true, User = {Enabled = true, Anonymous = false}})
-Window:EditOpenButton({Title = "e-Fishery", Icon = "shrimp", CornerRadius = UDim.new(0,19), StrokeThickness = 2, Color = ColorSequence.new(Color3.fromHex("9600FF"), Color3.fromHex("AEBAF8")), Draggable = true})
-Window:Tag({ Title = "STABLE", Color = Color3.fromHex("#30ff6a") })
-WindUI:SetNotificationLower(true)
-
-local Home = Window:Tab({ Title = "Developer Info", Icon = "hard-drive" })
-local Main = Window:Tab({ Title = "Main", Icon = "toggle-right" })
-local AutoFarm = Window:Tab({ Title = "Auto Farm", Icon = "map" })
-local UtilitiesTab = Window:Tab({ Title = "Utilities", Icon = "atom" })
-local FishNotif = Window:Tab({ Title = "Fish Notification", Icon = "bell-ring" })
-local TradeTab = Window:Tab({ Title = "Auto Trade", Icon = "handshake" })
-
--------------------------------------------
------ =======[ HOME TAB ]
--------------------------------------------
-local function LookupDiscordInvite(inviteCode)
-    local success, response = pcall(game.HttpGet, game, "https://discord.com/api/v10/invites/" .. inviteCode .. "?with_counts=true")
-    if success then
-        local data = HttpService:JSONDecode(response)
-        return {name = data.guild and data.guild.name or "Unknown", online = data.approximate_presence_count or 0, members = data.approximate_member_count or 0, icon = data.guild and data.guild.icon and "https://cdn.discordapp.com/icons/"..data.guild.id.."/"..data.guild.icon..".png" or ""}
-    end
-    return nil
-end
-local inviteData = LookupDiscordInvite("UyscFN7q7J")
-if inviteData then Home:Paragraph({Title = string.format("[DISCORD] %s", inviteData.name), Desc = string.format("Members: %d\nOnline: %d", inviteData.members, inviteData.online), Image = inviteData.icon, ImageSize = 50, Locked = true}) end
-
--------------------------------------------
------ =======[ CONFIG & SAVE/LOAD SYSTEM ]
--------------------------------------------
-local savedData, webhookUrl, SelectedCategories = {}, nil, {}
-local file_name = "e_fishery_session.json"
-local function saveConfig()
-    if writefile then
-        savedData.webhookUrl = webhookUrl
-        savedData.autoFavourite = state.AutoFavourite
-        savedData.autoSell = state.AutoSell
-        savedData.webhookCategories = SelectedCategories
-        savedData.lastFarmPosition = lastFarmPosition
-        writefile(file_name, HttpService:JSONEncode(savedData))
+for _, child in pairs(PlayerGui:GetChildren()) do
+    if child:IsA("ScreenGui") then
+        spyOnGui(child) -- Spy on existing GUIs
+        child.DescendantAdded:Connect(spyOnGui) -- Spy on things added to them later
     end
 end
-local function loadConfig()
-    if isfile and isfile(file_name) then
-        local success, data = pcall(function() return HttpService:JSONDecode(readfile(file_name)) end)
-        if success and type(data) == "table" then savedData = data end
-    end
-    webhookUrl = savedData.webhookUrl
-    SelectedCategories = savedData.webhookCategories or {"Secret"}
-    lastFarmPosition = savedData.lastFarmPosition
-end
-
--------------------------------------------
------ =======[ UI AND LOGIC VARIABLES ]
--------------------------------------------
--- These need to be declared here so the callbacks can see each other
-local autoFishToggle, autoFavouriteToggle, autoSellToggle, startAutoFarmToggle
-
--------------------------------------------
------ =======[ MAIN TAB ]
--------------------------------------------
-autoFishToggle = Main:Toggle({
-    Title = "Auto Fish",
-    Desc = "For simple fishing at your current spot.",
-    Callback = function(Value)
-        state.AutoFish = Value
-        if Value then
-            startAutoFish()
-        else
-            stopAutoFish()
-            -- If we turn off simple fishing, also turn off the advanced farm loop
-            if isAutoFarmRunning then
-                isAutoFarmRunning = false
-                if startAutoFarmToggle then
-                    startAutoFarmToggle:Set(false)
-                end
-            end
-        end
-        saveConfig()
-    end
-})
-
-autoFavouriteToggle = Main:Toggle({Title = "Auto Favourite", Desc = "Automatically favorites Legendary, Mythic, and Secret fish.", Callback = function(v) state.AutoFavourite = v; if v then startAutoFavourite() end; saveConfig() end})
-autoSellToggle = Main:Toggle({Title = "Auto Sell (Legacy)", Desc = "Sells unfavorited items when inventory is full.", Callback = function(v) state.AutoSell = v; if v then startAutoSell() end; saveConfig() end})
-
--------------------------------------------
------ =======[ AUTO FARM TAB ]
--------------------------------------------
-
-local EVENT_FOLDER_NAME = "Props"
-local floatPlatform, savedCFrame, eventTarget = nil, nil, nil
-local autoTPEvent, alreadyTeleported, monitoringTP = false, false, false
-local obtainedFishUUIDs, knownEvents = {}, {}
-local obtainedLimit = 30
-local selectedIsland = "Crater Islands"
-
-local function floatingPlat(enabled)
-    if enabled then
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        floatPlatform = Instance.new("Part")
-        floatPlatform.Anchored = true; floatPlatform.Size = Vector3.new(10, 1, 10); floatPlatform.Transparency = 1; floatPlatform.Name = "FloatPlatform"; floatPlatform.Parent = workspace
-        task.spawn(function()
-            while floatPlatform and floatPlatform.Parent do
-                if hrp and hrp.Parent then floatPlatform.Position = hrp.Position - Vector3.new(0, 3.5, 0) end
-                task.wait(0.1)
-            end
-        end)
-    else
-        if floatPlatform then floatPlatform:Destroy(); floatPlatform = nil end
-    end
-end
-
-local function updateKnownEvents()
-    local eventCount = 0
-    knownEvents = {}
-    local propsFolder = workspace:FindFirstChild(EVENT_FOLDER_NAME)
-    if propsFolder then
-        for _, child in ipairs(propsFolder:GetDescendants()) do
-            if child:IsA("Model") and child.PrimaryPart then
-                knownEvents[child.Name:lower()] = child
-                eventCount = eventCount + 1
-            end
-        end
-    end
-    NotifyInfo("Event Scan", "Found " .. eventCount .. " active events.", 1.5)
-    return eventCount > 0
-end
-
-local function isEventStillActive(name)
-    local propsFolder = workspace:FindFirstChild(EVENT_FOLDER_NAME)
-    if not propsFolder then return false end
-    for _, child in ipairs(propsFolder:GetDescendants()) do
-        if child:IsA("Model") and string.lower(child.Name) == string.lower(name) then return true end
-    end
-    return false
-end
-
-local function saveOriginalPosition()
-    if player.Character and player.Character.HumanoidRootPart then savedCFrame = player.Character.HumanoidRootPart.CFrame end
-end
-
-local function returnToOriginalPosition()
-    if savedCFrame then teleportTo(savedCFrame); savedCFrame = nil end
-end
-
-local function monitorAutoTP()
-    if monitoringTP then return end
-    monitoringTP = true
-    task.spawn(function()
-        while true do
-            if autoTPEvent and not isAutoFarmRunning then
-                if not alreadyTeleported then
-                    if updateKnownEvents() then
-                        for _, eventModel in pairs(knownEvents) do
-                            saveOriginalPosition()
-                            NotifySuccess("Event Found!", "Teleporting to: " .. eventModel.Name)
-                            teleportTo(CFrame.new(eventModel:GetPivot().Position + Vector3.new(0, 10, 0)))
-                            floatingPlat(true); alreadyTeleported = true; eventTarget = eventModel.Name
-                            if autoFishToggle then autoFishToggle:Set(true) end -- Sync UI
-                            startAutoFish()
-                            break
-                        end
-                    end
-                else
-                    if eventTarget and not isEventStillActive(eventTarget) then
-                        NotifyInfo("Event Ended", "Returned to start position.")
-                        stopAutoFish(); returnToOriginalPosition(); floatingPlat(false); alreadyTeleported = false; eventTarget = nil
-                        if autoFishToggle then autoFishToggle:Set(false) end -- Sync UI
-                    end
-                end
-            elseif alreadyTeleported then
-                stopAutoFish(); returnToOriginalPosition(); floatingPlat(false); alreadyTeleported = false; eventTarget = nil
-                if autoFishToggle then autoFishToggle:Set(false) end -- Sync UI
-            end
-            task.wait(3)
-        end
-    end)
-end
-
-local function monitorEvents()
-    task.spawn(function()
-        local propsFolder = workspace:FindFirstChild(EVENT_FOLDER_NAME)
-        while not propsFolder do
-            NotifyWarning("Event System", "Searching for folder: '" .. EVENT_FOLDER_NAME .. "'...", 5)
-            task.wait(10)
-            propsFolder = workspace:FindFirstChild(EVENT_FOLDER_NAME)
-        end
-        NotifySuccess("Event System", "Successfully hooked into '" .. EVENT_FOLDER_NAME .. "' folder.")
-        propsFolder.ChildAdded:Connect(updateKnownEvents)
-        propsFolder.ChildRemoved:Connect(updateKnownEvents)
-        updateKnownEvents()
-    end)
-end
-
-local farmLocations = {
-    ["Crater Islands"] = {CFrame.new(1066.1864, 57.2025681, 5045.5542, -0.682534158, 0, 0.730853677, 0, 1, 0, -0.730853677, 0, -0.682534158), CFrame.new(1057.28992, 33.0884132, 5133.79883, 0.833871782, 0, 0.551958203, 0, 1, 0, -0.551958203, 0, 0.833871782), CFrame.new(988.954712, 42.8254471, 5088.71289, -0.849417388, 0, 0.527721584, 0, 1, 0, -0.527721584, 0, -0.849417388)},
-    ["Tropical Grove"] = {CFrame.new(-2165.05469, 2.77070165, 3639.87451, -0.589090407, 0, -0.808067143, 0, 1, 0, 0.808067143, 0, -0.589090407)},
-    ["Vulcano"] = {CFrame.new(-701.447937, 48.1446075, 93.1546631, -0.0770962164, 0, -0.997023642, 0, 1, 0, 0.997023642, 0, -0.0770962164)},
-    ["Coral Reefs"] = {CFrame.new(-3118.39624, 2.42531538, 2135.26392, 0.92336154, 0, -0.383931547, 0, 1, 0, 0.383931547, 0, 0.92336154)},
-    ["Winter"] = {CFrame.new(2036.15308, 6.54998732, 3381.88916, 0.943401575, 0, -0.331652641, 0, 1, 0, 0.331652641, 0, 0.943401575)},
-    ["Machine"] = {CFrame.new(-1459.3772, 14.7103214, 1831.5188, 0.777951121, 0, -0.628324807, 0, 1, 0, 0.628324807, 0, 0.777951121)},
-    ["Treasure Room"] = {CFrame.new(-3625.0708, -279.074219, -1594.57605, 0.918176472, 0, -0.396171629, 0, 1, 0, 0.396171629, 0, 0.918176472)},
-    ["Sisyphus Statue"] = {CFrame.new(-3777.43433, -135.074417, -975.198975, -0.284491211, 0, -0.958678663, 0, 1, 0, 0.958678663, 0, -0.284491211)},
-}
-
-local netFolder = getNetFolder()
-if netFolder then local R = netFolder:FindFirstChild("RE/ObtainedNewFishNotification"); if R then R.OnClientEvent:Connect(function(_,_,d) if d and d.InventoryItem then table.insert(obtainedFishUUIDs, d.InventoryItem.UUID) end end) end end
-
-local function sellItems()
-    if #obtainedFishUUIDs > 0 and netFolder then
-        local sellFunc = netFolder:FindFirstChild("RF/SellAllItems")
-        if sellFunc then sellFunc:InvokeServer() end
-    end
-    obtainedFishUUIDs = {}
-end
-
-local function startAutoFarmLoop()
-    task.spawn(function()
-        NotifySuccess("Auto Farm Enabled", "Fishing started on island: " .. selectedIsland)
-        while isAutoFarmRunning do
-            if autoTPEvent and alreadyTeleported then
-                NotifyInfo("Auto Farm", "Paused for event...", 2)
-                task.wait(1)
-            else
-                local islandSpots = farmLocations[selectedIsland]
-                local location = islandSpots[math.random(1, #islandSpots)]
-                teleportTo(location); lastFarmPosition = location; task.wait(1.5)
-                if autoFishToggle then autoFishToggle:Set(true) end
-                startAutoFish()
-                repeat task.wait(0.5) until #obtainedFishUUIDs >= obtainedLimit or not isAutoFarmRunning or (autoTPEvent and #knownEvents > 0)
-                if autoFishToggle then autoFishToggle:Set(false) end
-                stopAutoFish()
-                if not isAutoFarmRunning then break end
-                if autoTPEvent and #knownEvents > 0 then
-                    NotifyInfo("Auto Farm", "Event detected, pausing island farm.", 3)
-                    task.wait(1)
-                else
-                    NotifyInfo("Fish Threshold Reached", "Selling all fishes...")
-                    sellItems()
-                    task.wait(1)
-                end
-            end
-        end
-    end)
-end
-
-local nameList = {}; for name, _ in pairs(farmLocations) do table.insert(nameList, name) end; table.sort(nameList)
-AutoFarm:Dropdown({Title = "Farm Island", Values = nameList, Default = selectedIsland, Callback = function(v) selectedIsland = v; NotifySuccess("Island Selected", "Farming location set to " .. v) end})
-AutoFarm:Input({Title = "Fish Threshold", Placeholder = "e.g., 30", Default = tostring(obtainedLimit), Callback = function(v) local n = tonumber(v); if n and n > 0 then obtainedLimit = n; NotifySuccess("Threshold Set", "Fish threshold set to " .. n) else NotifyError("Invalid Input", "Please enter a valid number > 0.") end end})
-startAutoFarmToggle = AutoFarm:Toggle({Title = "Start Auto Farm", Callback = function(v) isAutoFarmRunning = v; if v then startAutoFarmLoop() else stopAutoFish(); if autoFishToggle then autoFishToggle:Set(false) end; NotifyWarning("Auto Farm Stopped", "Auto farm has been disabled.") end end})
-AutoFarm:Toggle({Title = "Auto Farm Event", Desc = "Overrides island farming to teleport to world events.", Callback = function(v) autoTPEvent = v; if v then NotifyInfo("Event Farm Enabled", "Searching for events...") else NotifyWarning("Event Farm Disabled", "No longer farming events.") end end})
-
--------------------------------------------
------ =======[ UTILITIES TAB ]
--------------------------------------------
-UtilitiesTab:Dropdown({Title = "Auto Buy Weather", Desc = "Automatically buys selected weather events when they expire.", Values = {"Storm", "Cloudy", "Snow", "Wind"}, Multi = true, AllowNone = true, Callback = function(s) for wt, a in pairs(weatherActive) do if a and not table.find(s, wt) then weatherActive[wt] = false; NotifyWarning("Auto Weather", "Auto buying " .. wt .. " has been stopped.") end end; for _, wt in pairs(s) do if not weatherActive[wt] then weatherActive[wt] = true; NotifyInfo("Auto Weather", "Auto buying " .. wt .. " has started!"); autoBuyWeather(wt) end end end})
-UtilitiesTab:Button({Title = "Teleport to Esoteric Island", Callback = function() teleportTo(CFrame.new(3231, -1303, 1401)); NotifySuccess("Teleport", "Moving to Esoteric Island...") end})
-
--------------------------------------------
------ =======[ FISH NOTIFICATION & DATA ]
--------------------------------------------
-local FishDataById, VariantsByName, rarityMap, reverseRarityMap = {}, {}, {[1]="Common",[2]="Uncommon",[3]="Rare",[4]="Epic",[5]="Legendary",[6]="Mythic",[7]="Secret"}, {}
-for t, n in pairs(rarityMap) do reverseRarityMap[n] = t end
-pcall(function() for _, i in ipairs(ReplicatedStorage.Items:GetChildren()) do local ok, d = pcall(require, i); if ok and d.Data and d.Data.Type == "Fishes" then FishDataById[d.Data.Id] = {Name=d.Data.Name, SellPrice=d.SellPrice or 0, Tier=d.Data.Tier, Icon=d.IconId or d.Data.Icon or ""} end end; for _, v in ipairs(ReplicatedStorage.Variants:GetChildren()) do local ok, d = pcall(require, v); if ok and d.Data and d.Data.Type == "Variant" then VariantsByName[d.Data.Name] = d.SellMultiplier or 1 end end end)
-local categoriesDropdown
-FishNotif:Paragraph({Title = "Fish Notification", Color = "Green", Desc = [[Sends a Discord notification when you catch a rare fish.]]})
-local function validateWebhook(url) if not url or url == "" then return false, "URL is empty" end; if not url:match("^https://discord.com/api/webhooks/%d+/.+") then return false, "Invalid Discord webhook URL format." end; local s, r = pcall(game.HttpGet, game, url); if not s then return false, "Failed to connect to Discord" end; local ok, d = pcall(HttpService.JSONDecode, HttpService, r); if not ok or not d or not d.channel_id then return false, "Invalid" end; return true, d.channel_id end
-FishNotif:Input({Title = "Webhook URL", Desc = "Paste your full Discord webhook URL here.", Placeholder = "https://discord.com/api/webhooks/...", Default = savedData.webhookUrl, Callback = function(t) if t == "" then webhookUrl = nil; saveConfig(); NotifyInfo("Webhook Cleared", "Notifications disabled."); return end; local isValid, r = validateWebhook(t); if isValid then webhookUrl = t; saveConfig(); NotifySuccess("Webhook Set & Saved", "Channel ID: " .. tostring(r)) else webhookUrl = nil; NotifyError("URL Invalid", tostring(r)) end end})
-categoriesDropdown = FishNotif:Dropdown({Title = "Select Fish Categories", Desc = "Choose which categories to send to webhook", Values = {"Secret", "Legendary", "Mythic", "Epic"}, Multi = true, Default = {"Secret"}, Callback = function(s) SelectedCategories = s; saveConfig() end})
-
--------------------------------------------
------ =======[ AUTO TRADE TAB ]
--------------------------------------------
-local targetUserId, tradeActive, selectedTradeCategory = nil, false, "Common"
-TradeTab:Input({Title = "Target Player", Desc = "Enter the Display/Username of the player to trade with.", Placeholder = "Enter player name...", Callback = function(dn) targetUserId = nil; if dn == "" then NotifyInfo("Trade Target Cleared", "No player targeted."); return end; for _, p in ipairs(Players:GetPlayers()) do if string.lower(p.DisplayName) == string.lower(dn) or string.lower(p.Name) == string.lower(dn) then targetUserId = p.UserId; NotifySuccess("Trade Target Set", "Targeting " .. p.Name); return end end; NotifyError("Trade Target Not Found", "Could not find a player with that name.", 3) end})
-TradeTab:Toggle({Title = "Enable Item-Click Trading", Desc = "Clicking an item in your inventory will send a trade request.", Callback = function(v) tradeActive = v; if v then NotifyInfo("Trade Mode Activated", "Click an item to trade it.") else NotifyWarning("Trade Mode Deactivated", "Item-click trading is off.") end end})
-TradeTab:Divider()
-TradeTab:Dropdown({Title = "Select Category to Trade", Values = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret"}, Default = "Common", Callback = function(s) selectedTradeCategory = s end})
-TradeTab:Button({Title = "Trade All by Category", Desc = "Trades all UNFAVORITED fish of the selected category.", Callback = function() if not targetUserId then NotifyError("Trade Failed", "Set a target player first."); return end; if not Replion or not ItemUtility then NotifyError("Trade Failed", "Modules not available."); return end; local tTier = reverseRarityMap[selectedTradeCategory]; if not tTier then NotifyError("Trade Failed", "Invalid category."); return end; NotifyInfo("Starting Trade", "Finding '" .. selectedTradeCategory .. "' fish..."); task.spawn(function() local toTrade = {}; local dRep = Replion.Client:WaitReplion("Data"); local inv = dRep and dRep:Get({"Inventory","Items"}); if type(inv) ~= "table" then return end; for _, item in ipairs(inv) do local base = ItemUtility:GetItemData(item.Id); if base and base.Data and base.Data.Tier == tTier and not item.Favorited then table.insert(toTrade, item.UUID) end end; if #toTrade == 0 then NotifyWarning("No Fish Found", "No unfavorited '" .. selectedTradeCategory .. "' fish were found."); return end; NotifySuccess("Fish Found", "Found " .. #toTrade .. " fish. Sending trades..."); local net = getNetFolder(); local iTrade = net and net:FindFirstChild("RF/InitiateTrade"); if not iTrade then NotifyError("Trade Failed", "Could not find InitiateTrade remote."); return end; for _, uuid in ipairs(toTrade) do iTrade:InvokeServer(targetUserId, uuid); task.wait(0.75) end; NotifyInfo("Trade Complete", "Finished sending all trade requests.") end) end})
-
--------------------------------------------
------ =======[ METAMETHOD & EVENT HOOKS ]
--------------------------------------------
-local function GetRobloxImage(assetId) local s, r = pcall(game.HttpGet, game, "https://thumbnails.roblox.com/v1/assets?assetIds="..assetId.."&size=420x420&format=Png&isCircular=false"); if s then local d = HttpService:JSONDecode(r); if d and d.data and d.data[1] and d.data[1].imageUrl then return d.data[1].imageUrl end end; return nil end
-local function sendFishWebhook(fishName, rarityText, assetId, itemId, variantId) if not webhookUrl or webhookUrl == "" then return end; local username = player.DisplayName; local imageUrl = GetRobloxImage(assetId); if not imageUrl then return end; local caught = player.leaderstats and player.leaderstats.Caught; local rarest = player.leaderstats and player.leaderstats["Rarest Fish"]; local basePrice = (FishDataById[itemId] and FishDataById[itemId].SellPrice or 0) * (VariantsByName[variantId] or 1); local data = {username = "e-Fishery", embeds = {{title = "Fish Caught!", description = string.format("Player **%s** caught a **%s** (%s)!", username, fishName, rarityText), color = 49151, image = {url = imageUrl}, fields = {{name = "Sell Price", value = tostring(basePrice), inline = true}, {name = "Total Caught", value = tostring(caught and caught.Value or "N/A"), inline = true}, {name = "Rarest Fish", value = tostring(rarest and rarest.Value or "N/A"), inline = true}}, footer = {text = "e-Fishery Notifier | " .. os.date("%I:%M:%S %p")}}}}; local req = syn and syn.request or http and http.request or http_request or request or fluxus and fluxus.request; if req then req({Url = webhookUrl, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(data)}) end end
-if netFolder then local REObtained = netFolder:FindFirstChild("RE/ObtainedNewFishNotification"); if REObtained then REObtained.OnClientEvent:Connect(function(itemId, _, eventData) lastCatchTimestamp = os.time(); if not webhookUrl or webhookUrl == "" then return end; pcall(function() local fishInfo = FishDataById[itemId]; if not fishInfo then return end; local rarityName = rarityMap[fishInfo.Tier] or "Unknown"; local isTarget = false; for _, cat in pairs(SelectedCategories) do if string.lower(cat) == string.lower(rarityName) then isTarget = true; break end end; if isTarget then local assetId = string.match(fishInfo.Icon or "", "%d+"); if not assetId then return end; local fishName = fishInfo.Name; local variantId = eventData and eventData.InventoryItem and eventData.InventoryItem.Metadata and eventData.InventoryItem.Metadata.VariantId; sendFishWebhook(fishName, rarityName, assetId, itemId, variantId) end end) end) end end
-pcall(function() if not netFolder then return end; local RFAwait = netFolder:FindFirstChild("RF/AwaitTradeResponse"); local autoAccept = false; if RFAwait then RFAwait.OnClientInvoke = function(from, time) if autoAccept then NotifyInfo("Trade Accepted", "Auto accepted trade from " .. from.Name); return true end; return nil end; TradeTab:Toggle({Title = "Auto Accept All Trades", Desc = "Automatically accepts any incoming trade requests.", Callback = function(s) autoAccept = s; if s then NotifySuccess("Auto Accept Enabled", "Will now accept all trades.") else NotifyWarning("Auto Accept Disabled", "Manual accept required.") end end}) else TradeTab:Paragraph({Title = "Auto Accept Unavailable", Desc = "Could not find remote."}) end; local mt = getrawmetatable(game); if not mt or not mt.__namecall then return end; local old = mt.__namecall; setreadonly(mt, false); mt.__namecall = newcclosure(function(self, ...) local args, method = {...}, getnamecallmethod(); if tradeActive and tostring(self) == "RE/EquipItem" and method == "FireServer" then local uuid = args[1]; if uuid and targetUserId then local iTrade = netFolder:FindFirstChild("RF/InitiateTrade"); if iTrade then iTrade:InvokeServer(targetUserId, uuid); NotifySuccess("Trade Sent", "Sent trade request for item.") else NotifyError("Trade Failed", "Could not find InitiateTrade remote.") end elseif not targetUserId then NotifyError("Trade Failed", "No target player is set.") end; return nil end; return old(self, unpack(args)) end); setreadonly(mt, true) end)
-
--------------------------------------------
------ =======[ INITIALIZE AND RESTORE SESSION ]
--------------------------------------------
-local function applyLoadedState()
-    if categoriesDropdown and savedData.webhookCategories then categoriesDropdown:Set(savedData.webhookCategories) end
-    if savedData.autoFavourite then state.AutoFavourite = true; autoFavouriteToggle:Set(true) end
-    if savedData.autoSell then state.AutoSell = true; autoSellToggle:Set(true) end
-end
-
--- Start the event monitoring systems
-monitorEvents()
-monitorAutoTP()
-
-loadConfig()
-applyLoadedState()
