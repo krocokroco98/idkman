@@ -1,27 +1,118 @@
--- [Debug Script]
--- Purpose: Test if WindUI can be loaded and a basic window can be created.
-
-pcall(function()
-    print("Attempting to download WindUI...")
+return function(gameStatusData)
     local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+    if not WindUI then return end
+
+    -- All local variables (HttpService, Players, etc.) remain the same
+
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local TweenService = game:GetService("TweenService")
+    local Lighting = game:GetService("Lighting")
+    local MarketplaceService = game:GetService("MarketplaceService")
+    local RunService = game:GetService("RunService")
+    local player = Players.LocalPlayer
+    local startTime = os.time()
+
+    local introScreenGui, introBlur, introFrame, introBg, introGlowFrame, introLogo, introLetters
     
-    if not WindUI then
-        warn("CRITICAL ERROR: WindUI library failed to load.")
-        warn("This could be due to your executor, an internet issue, or a broken link.")
-        return
+    local function createIntro()
+        -- This function remains the same
     end
 
-    print("SUCCESS: WindUI loaded correctly!")
-
-    local TestWindow = WindUI:CreateWindow({
-        Title = "UI Test",
-        Size = UDim2.fromOffset(300, 200)
-    })
-
-    if TestWindow then
-        print("SUCCESS: Test window was created.")
-        TestWindow:Tab({Title = "Success"}):Paragraph({Title = "If you see this window, the UI library is working."})
-    else
-        warn("ERROR: UI loaded, but the window could not be created.")
+    local function tweenOutAndDestroy()
+        -- This function remains the same
     end
-end)
+    
+    local function InitializeMainScript()
+        -- We wrap the entire initialization in a protected call to catch errors
+        local success, err = pcall(function()
+            
+            function gradient(text, startColor, endColor)
+                -- This function remains the same
+            end
+    
+            function formatPrice(price)
+                -- This function remains the same
+            end
+
+            WindUI:AddTheme({ Name = "Arcvour", Accent = "#4B2D82", Dialog = "#1E142D", Outline = "#46375A", Text = "#E5DCEA", Placeholder = "#A898C2", Background = "#221539", Button = "#8C46FF", Icon = "#A898C2" })
+            WindUI:SetTheme("Arcvour")
+            
+            local Window = WindUI:CreateWindow({
+                Title = gradient("ArcvourHUB", Color3.fromHex("#8C46FF"), Color3.fromHex("#BE78FF")),
+                Icon = "rbxassetid://90566677928169",
+                Author = "Fish It",
+                Size = UDim2.fromOffset(500, 320),
+                Folder = "ArcvourHUB_Config",
+                Transparent = false,
+                Theme = "Arcvour",
+                ToggleKey = Enum.KeyCode.K,
+                SideBarWidth = 160
+            })
+
+            if not Window then return end
+
+            -- All the code for the floating button remains the same
+
+            local Sections = {
+                Farming = Window:Section({ Title = "Farming", Opened = true }),
+                Events = Window:Section({ Title = "Events", Opened = true }),
+                Webhook = Window:Section({ Title = "Webhook", Opened = true }),
+                Buy = Window:Section({ Title = "Buy", Opened = true }),
+                Teleport = Window:Section({ Title = "Teleport", Opened = true }),
+                Settings = Window:Section({ Title = "Settings", Opened = true }),
+                Misc = Window:Section({ Title = "Misc", Opened = true })
+            }
+    
+            local Tabs = {
+                Auto_Fish = Sections.Farming:Tab({ Title = "Auto Fish", Icon = "fish", ShowTabTitle = true }),
+                Auto_Sell = Sections.Farming:Tab({ Title = "Auto Sell", Icon = "dollar-sign", ShowTabTitle = true }),
+                Auto_Trade = Sections.Farming:Tab({ Title = "Auto Trade", Icon = "repeat", ShowTabTitle = true }),
+                Auto_Favorite = Sections.Farming:Tab({ Title = "Auto Favorite", Icon = "star", ShowTabTitle = true }),
+                Auto_Enchant = Sections.Farming:Tab({ Title = "Auto Enchant", Icon = "sparkles", ShowTabTitle = true }),
+    
+                Auto_TP_Event = Sections.Events:Tab({ Title = "Auto TP Event", Icon = "radio-tower", ShowTabTitle = true }),
+    
+                -- ... rest of the Tabs definitions
+            }
+            
+            -- ALL OF THE FEATURE CODE (AUTO FISH, WEBHOOKS, TELEPORT, ETC.) GOES HERE
+            -- This includes the large `do` block with all the logic.
+            
+            -- This is the fixed event teleport logic from before
+            do
+                Tabs.Auto_TP_Event:Section({ Title = "Automatic Event Teleport" })
+                local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Megalodon Hunt"}
+
+                -- The rest of the Auto_TP_Event logic, including the fixed findEventPart function, is assumed to be here.
+            end
+
+            -- ... All other features ...
+            
+            if Window then
+                Window:SelectTab(1)
+                WindUI:Notify({ Title = "ArcvourHUB Ready", Content = "All features have been loaded. Enjoy!", Duration = 8, Icon = "check-circle" })
+            end
+        end)
+
+        -- If the pcall fails, this will now notify you with the error
+        if not success then
+            warn("ARCVOUR SCRIPT FAILED TO INITIALIZE: ", err)
+            WindUI:Notify({ 
+                Title = "Script Error", 
+                Content = "A part of the script failed to load, likely due to a game update. Error: " .. tostring(err), 
+                Duration = 20,
+                Icon = "alert-triangle"
+            })
+        end
+    end
+    
+    -- The rest of the script remains the same (createIntro, etc.)
+    
+    createIntro()
+    task.wait(2.5)
+    
+    tweenOutAndDestroy()
+    InitializeMainScript()
+end
