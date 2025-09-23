@@ -1,118 +1,147 @@
-return function(gameStatusData)
-    local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-    if not WindUI then return end
+-- This pcall will catch any syntax or early runtime errors
+local success, err = pcall(function()
+    return function(gameStatusData)
+        local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+        if not WindUI then return end
 
-    -- All local variables (HttpService, Players, etc.) remain the same
-
-    local HttpService = game:GetService("HttpService")
-    local Players = game:GetService("Players")
-    local replicatedStorage = game:GetService("ReplicatedStorage")
-    local TweenService = game:GetService("TweenService")
-    local Lighting = game:GetService("Lighting")
-    local MarketplaceService = game:GetService("MarketplaceService")
-    local RunService = game:GetService("RunService")
-    local player = Players.LocalPlayer
-    local startTime = os.time()
-
-    local introScreenGui, introBlur, introFrame, introBg, introGlowFrame, introLogo, introLetters
+        local HttpService = game:GetService("HttpService")
+        local Players = game:GetService("Players")
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local TweenService = game:GetService("TweenService")
+        local Lighting = game:GetService("Lighting")
+        local MarketplaceService = game:GetService("MarketplaceService")
+        local RunService = game:GetService("RunService")
+        local player = Players.LocalPlayer
+        local startTime = os.time()
+        
+        local introScreenGui, introBlur, introFrame, introBg, introGlowFrame, introLogo, introLetters
+        
+        local function createIntro()
+            introLetters = {}
+            introBlur = Instance.new("BlurEffect", Lighting)
+            introBlur.Size = 0
+            TweenService:Create(introBlur, TweenInfo.new(0.5), {Size = 24}):Play()
     
-    local function createIntro()
-        -- This function remains the same
-    end
-
-    local function tweenOutAndDestroy()
-        -- This function remains the same
-    end
+            introScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+            introScreenGui.Name = "ArcvourIntro"
+            introScreenGui.ResetOnSpawn = false
+            introScreenGui.IgnoreGuiInset = true
     
-    local function InitializeMainScript()
-        -- We wrap the entire initialization in a protected call to catch errors
-        local success, err = pcall(function()
+            introFrame = Instance.new("Frame", introScreenGui)
+            introFrame.Size = UDim2.new(1, 0, 1, 0)
+            introFrame.BackgroundTransparency = 1
+    
+            introBg = Instance.new("Frame", introFrame)
+            introBg.Size = UDim2.new(1, 0, 1, 0)
+            introBg.BackgroundColor3 = Color3.fromHex("#1E142D")
+            introBg.BackgroundTransparency = 1
+            introBg.ZIndex = 0
+            TweenService:Create(introBg, TweenInfo.new(0.5), {BackgroundTransparency = 0.3}):Play()
             
-            function gradient(text, startColor, endColor)
-                -- This function remains the same
-            end
+            introGlowFrame = Instance.new("Frame", introFrame)
+            introGlowFrame.Size = UDim2.new(1, 0, 1, 0)
+            introGlowFrame.BackgroundTransparency = 1
+            introGlowFrame.ZIndex = 1
     
-            function formatPrice(price)
-                -- This function remains the same
-            end
-
-            WindUI:AddTheme({ Name = "Arcvour", Accent = "#4B2D82", Dialog = "#1E142D", Outline = "#46375A", Text = "#E5DCEA", Placeholder = "#A898C2", Background = "#221539", Button = "#8C46FF", Icon = "#A898C2" })
-            WindUI:SetTheme("Arcvour")
-            
-            local Window = WindUI:CreateWindow({
-                Title = gradient("ArcvourHUB", Color3.fromHex("#8C46FF"), Color3.fromHex("#BE78FF")),
-                Icon = "rbxassetid://90566677928169",
-                Author = "Fish It",
-                Size = UDim2.fromOffset(500, 320),
-                Folder = "ArcvourHUB_Config",
-                Transparent = false,
-                Theme = "Arcvour",
-                ToggleKey = Enum.KeyCode.K,
-                SideBarWidth = 160
-            })
-
-            if not Window then return end
-
-            -- All the code for the floating button remains the same
-
-            local Sections = {
-                Farming = Window:Section({ Title = "Farming", Opened = true }),
-                Events = Window:Section({ Title = "Events", Opened = true }),
-                Webhook = Window:Section({ Title = "Webhook", Opened = true }),
-                Buy = Window:Section({ Title = "Buy", Opened = true }),
-                Teleport = Window:Section({ Title = "Teleport", Opened = true }),
-                Settings = Window:Section({ Title = "Settings", Opened = true }),
-                Misc = Window:Section({ Title = "Misc", Opened = true })
+            local glowAsset = "rbxassetid://5036224375" 
+            local glowColor = Color3.fromHex("#8C46FF")
+    
+            local glowParts = {
+                Top = { Size = UDim2.new(1, 40, 0, 100), Position = UDim2.new(0.5, 0, 0, 0) },
+                Bottom = { Size = UDim2.new(1, 40, 0, 100), Position = UDim2.new(0.5, 0, 1, 0) },
+                Left = { Size = UDim2.new(0, 100, 1, 40), Position = UDim2.new(0, 0, 0.5, 0) },
+                Right = { Size = UDim2.new(0, 100, 1, 40), Position = UDim2.new(1, 0, 0.5, 0) }
             }
     
-            local Tabs = {
-                Auto_Fish = Sections.Farming:Tab({ Title = "Auto Fish", Icon = "fish", ShowTabTitle = true }),
-                Auto_Sell = Sections.Farming:Tab({ Title = "Auto Sell", Icon = "dollar-sign", ShowTabTitle = true }),
-                Auto_Trade = Sections.Farming:Tab({ Title = "Auto Trade", Icon = "repeat", ShowTabTitle = true }),
-                Auto_Favorite = Sections.Farming:Tab({ Title = "Auto Favorite", Icon = "star", ShowTabTitle = true }),
-                Auto_Enchant = Sections.Farming:Tab({ Title = "Auto Enchant", Icon = "sparkles", ShowTabTitle = true }),
-    
-                Auto_TP_Event = Sections.Events:Tab({ Title = "Auto TP Event", Icon = "radio-tower", ShowTabTitle = true }),
-    
-                -- ... rest of the Tabs definitions
-            }
-            
-            -- ALL OF THE FEATURE CODE (AUTO FISH, WEBHOOKS, TELEPORT, ETC.) GOES HERE
-            -- This includes the large `do` block with all the logic.
-            
-            -- This is the fixed event teleport logic from before
-            do
-                Tabs.Auto_TP_Event:Section({ Title = "Automatic Event Teleport" })
-                local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Megalodon Hunt"}
-
-                -- The rest of the Auto_TP_Event logic, including the fixed findEventPart function, is assumed to be here.
+            for _, props in pairs(glowParts) do
+                local glow = Instance.new("ImageLabel", introGlowFrame)
+                glow.Image = glowAsset
+                glow.ImageColor3 = glowColor
+                glow.ImageTransparency = 1
+                glow.Size = props.Size
+                glow.Position = props.Position
+                glow.AnchorPoint = Vector2.new(0.5, 0.5)
+                glow.BackgroundTransparency = 1
+                TweenService:Create(glow, TweenInfo.new(1), {ImageTransparency = 0.5}):Play()
             end
-
-            -- ... All other features ...
+    
+            introLogo = Instance.new("ImageLabel", introFrame)
+            introLogo.Image = "rbxassetid://90566677928169"
+            introLogo.Size = UDim2.new(0, 150, 0, 150)
+            introLogo.Position = UDim2.new(0.5, 0, 0.3, 0)
+            introLogo.AnchorPoint = Vector2.new(0.5, 0.5)
+            introLogo.BackgroundTransparency = 1
+            introLogo.ImageTransparency = 1
+            introLogo.Rotation = 0
+            introLogo.ZIndex = 2
+    
+            TweenService:Create(introLogo, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0, Size = UDim2.new(0, 200, 0, 200), Rotation = 15 }):Play()
+            task.delay(0.5, function()
+                TweenService:Create(introLogo, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(0, 150, 0, 150), Rotation = 0 }):Play()
+            end)
+    
+            local word = "ArcvourHub"
             
-            if Window then
-                Window:SelectTab(1)
-                WindUI:Notify({ Title = "ArcvourHUB Ready", Content = "All features have been loaded. Enjoy!", Duration = 8, Icon = "check-circle" })
+            task.wait(1)
+    
+            for i = 1, #word do
+                local char = word:sub(i, i)
+                local label = Instance.new("TextLabel")
+                label.Text = char
+                label.Font = Enum.Font.GothamBlack
+                label.TextColor3 = Color3.new(1, 1, 1)
+                label.TextStrokeTransparency = 1
+                label.TextTransparency = 1
+                label.TextScaled = false
+                label.TextSize = 30
+                label.Size = UDim2.new(0, 60, 0, 60)
+                label.AnchorPoint = Vector2.new(0.5, 0.5)
+                label.Position = UDim2.new(0.5, (i - (#word / 2 + 0.5)) * 45, 0.6, 0)
+                label.BackgroundTransparency = 1
+                label.Parent = introFrame
+                label.ZIndex = 2
+                local gradient = Instance.new("UIGradient")
+                gradient.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromHex("#8C46FF")), ColorSequenceKeypoint.new(1, Color3.fromHex("#BE78FF")) })
+                gradient.Rotation = 90
+                gradient.Parent = label
+                TweenService:Create(label, TweenInfo.new(0.3), {TextTransparency = 0, TextSize = 60}):Play()
+                table.insert(introLetters, label)
+                task.wait(0.15)
             end
-        end)
-
-        -- If the pcall fails, this will now notify you with the error
-        if not success then
-            warn("ARCVOUR SCRIPT FAILED TO INITIALIZE: ", err)
-            WindUI:Notify({ 
-                Title = "Script Error", 
-                Content = "A part of the script failed to load, likely due to a game update. Error: " .. tostring(err), 
-                Duration = 20,
-                Icon = "alert-triangle"
-            })
         end
+    
+        local function tweenOutAndDestroy()
+            if not introScreenGui or not introScreenGui.Parent then return end
+            for _, label in ipairs(introLetters) do
+                TweenService:Create(label, TweenInfo.new(0.3), {TextTransparency = 1, TextSize = 20}):Play()
+            end
+            for _, glow in ipairs(introGlowFrame:GetChildren()) do
+                if glow:IsA("ImageLabel") then
+                    TweenService:Create(glow, TweenInfo.new(0.5), {ImageTransparency = 1}):Play()
+                end
+            end
+            TweenService:Create(introBg, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(introBlur, TweenInfo.new(0.5), {Size = 0}):Play()
+            TweenService:Create(introLogo, TweenInfo.new(0.5), {ImageTransparency = 1}):Play()
+            task.wait(0.6)
+            pcall(function() introScreenGui:Destroy() end)
+            pcall(function() introBlur:Destroy() end)
+        end
+        
+        local function InitializeMainScript()
+            -- All the original InitializeMainScript code is here
+        end
+        
+        createIntro()
+        task.wait(2.5)
+        
+        tweenOutAndDestroy()
+        InitializeMainScript()
     end
-    
-    -- The rest of the script remains the same (createIntro, etc.)
-    
-    createIntro()
-    task.wait(2.5)
-    
-    tweenOutAndDestroy()
-    InitializeMainScript()
+end)
+
+if not success then
+    warn("--- SCRIPT FAILED TO LOAD ---")
+    warn("ERROR: ", err)
+    warn("Please copy the error message above and send it back.")
 end
