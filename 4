@@ -51,8 +51,6 @@ end
 -- =========================
 local state = {
     AutoFish = false,
-    AutoFavourite = false,
-    AutoSell = false,
 }
 local lastFarmPosition = nil
 local lastCatchTimestamp = 0
@@ -61,34 +59,20 @@ local respawnTimerLoop = nil
 -- State for the Auto Event feature
 local eventTPState = { enabled = false, selectedEvent = nil, originalPosition = nil, platform = nil, wasAutoFishing = false, isAtEvent = false }
 
--- Other states
-local allowedTiers = { [5]=true, [6]=true, [7]=true }
-local weatherActive = {}
-local weatherData = {
-    ["Storm"] = { duration = 900 },
-    ["Cloudy"] = { duration = 900 },
-    ["Snow"] = { duration = 900 },
-    ["Wind"] = { duration = 900 }
-}
-
 -------------------------------------------
 ----- =======[ NOTIFY FUNCTION ]
 -------------------------------------------
 
-local function NotifySuccess(title, message, duration)
-    WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "circle-check" })
-end
-
-local function NotifyError(title, message, duration)
-    WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "ban" })
-end
-
 local function NotifyInfo(title, message, duration)
-    WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "info" })
+    if WindUI and WindUI.Notify then
+        WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "info" })
+    end
 end
 
 local function NotifyWarning(title, message, duration)
-    WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "triangle-alert" })
+    if WindUI and WindUI.Notify then
+        WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "triangle-alert" })
+    end
 end
 
 -- =========================
@@ -168,7 +152,7 @@ end)
 ----- =======[ LOAD WINDOW ]
 -------------------------------------------
 local Window = WindUI:CreateWindow({
-    Title = "e-Fishery V1.1", Icon = "shrimp", Author = "by Heyji", Folder = "e-Fishery",
+    Title = "e-Fishery V1.2 (Fixed)", Icon = "shrimp", Author = "by Heyji", Folder = "e-Fishery",
     Size = UDim2.fromOffset(600, 400), Transparent = true, Theme = "Dark", KeySystem = false
 })
 
@@ -214,6 +198,29 @@ end
 -------------------------------------------
 local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Shocked", "Black Hole", "Meteor Rain"}
 
+-- THIS IS THE CORRECTED FUNCTION
+local function findEventPart(eventName)
+    local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+    if not menuRings then return nil end
+    
+    local propsFolder = menuRings:FindFirstChild("Props")
+    if not propsFolder then return nil end
+
+    local eventNameLower = eventName:lower()
+    for _, descendant in ipairs(propsFolder:GetDescendants()) do
+        if descendant.Name == "DisplayName" and descendant:IsA("TextLabel") then
+            if descendant.Text:lower() == eventNameLower then
+                local currentAncestor = descendant
+                while currentAncestor and currentAncestor ~= propsFolder do
+                    if currentAncestor:IsA("BasePart") then return currentAncestor end
+                    currentAncestor = currentAncestor.Parent
+                end
+            end
+        end
+    end
+    return nil
+end
+
 EventsTab:Dropdown({
     Title = "Select Event",
     Values = eventNames,
@@ -239,24 +246,6 @@ EventsTab:Toggle({
         end
     end
 })
-
-local function findEventPart(eventName)
-    local propsFolder = workspace:FindFirstChild("Props")
-    if not propsFolder then return nil end
-    local eventNameLower = eventName:lower()
-    for _, descendant in ipairs(propsFolder:GetDescendants()) do
-        if descendant.Name == "DisplayName" and descendant:IsA("TextLabel") then
-            if descendant.Text:lower() == eventNameLower then
-                local currentAncestor = descendant
-                while currentAncestor and currentAncestor ~= propsFolder do
-                    if currentAncestor:IsA("BasePart") then return currentAncestor end
-                    currentAncestor = currentAncestor.Parent
-                end
-            end
-        end
-    end
-    return nil
-end
 
 task.spawn(function()
     while task.wait(5) do
