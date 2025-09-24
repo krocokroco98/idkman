@@ -324,7 +324,7 @@ local function teleportTo(posList)
 end
 
 -------------------------------------------
------ =======[ AUTO EVENT FARM FEATURE (MERGED) ]
+----- =======[ AUTO EVENT FARM FEATURE ]
 -------------------------------------------
 local workspace = game:GetService("Workspace")
 local floatPlatform = nil
@@ -500,9 +500,6 @@ local function monitorAutoTP()
 end
 
 task.spawn(monitorAutoTP)
--------------------------------------------
------ =======[ END OF MERGED FEATURE ]
--------------------------------------------
 
 -------------------------------------------
 ----- =======[ RESPAWN HANDLER ]
@@ -557,7 +554,7 @@ WindUI:SetNotificationLower(true)
 local Home = Window:Tab({ Title = "Developer Info", Icon = "hard-drive" })
 local Main = Window:Tab({ Title = "Main", Icon = "toggle-right" })
 local AutoFarm = Window:Tab({ Title = "Auto Farm", Icon = "map" })
-local EventFarmTab = Window:Tab({ Title = "Event Farm", Icon = "star" }) -- NEW TAB
+local EventFarmTab = Window:Tab({ Title = "Event Farm", Icon = "star" })
 local UtilitiesTab = Window:Tab({ Title = "Utilities", Icon = "atom" })
 local FishNotif = Window:Tab({ Title = "Fish Notification", Icon = "bell-ring" })
 local TradeTab = Window:Tab({ Title = "Auto Trade", Icon = "handshake" })
@@ -705,11 +702,11 @@ for name, pos in pairs(island_locations) do
 end
 
 -------------------------------------------
------ =======[ EVENT FARM TAB (MERGED) ]
+----- =======[ EVENT FARM TAB ]
 -------------------------------------------
 EventFarmTab:Toggle({
 	Title = "Auto Farm Event",
-	Desc = "!! DO WITH YOUR OWN RISK !!",
+	Desc = "Automatically teleports to and farms world events. !!USE AT YOUR OWN RISK!!",
 	Value = false,
 	Callback = function(Value)
 		autoTPEvent = Value
@@ -727,7 +724,6 @@ EventFarmTab:Toggle({
 		end
 	end
 })
-
 
 -------------------------------------------
 ----- =======[ UTILITIES TAB ]
