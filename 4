@@ -1,4 +1,4 @@
-------------------------------------------
+-------------------------------------------
 ----- =======[ Load WindUI ]
 -------------------------------------------
 
@@ -13,7 +13,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
-local workspace = game:GetService("Workspace")
 
 -- Safe require helper from Rayfield version
 local function safeRequire(pathTbl)
@@ -244,7 +243,8 @@ local function startAutoFish()
                 chargeFunc:InvokeServer(workspace:GetServerTimeNow())
                 task.wait(0.1)
                 startMini:InvokeServer(-0.75, 1)
-                
+
+                -- NEW: Play the reeling animation
                 pcall(function()
                     if AnimationController and AnimationController.PlayAnimation then
                         AnimationController:PlayAnimation("Reel")
@@ -270,7 +270,7 @@ local function stopAutoFish()
 end
 
 -- =========================
--- AUTO BUY WEATHER
+-- AUTO BUY WEATHER (NEW)
 -- =========================
 local function randomDelay(min, max)
     return math.random(min * 100, max * 100) / 100
@@ -282,7 +282,7 @@ local function autoBuyWeather(weatherType)
         NotifyError("Auto Weather", "Could not find network folder.")
         return
     end
-    
+
     local purchaseRemote = netFolder:FindFirstChild("RF/PurchaseWeatherEvent")
     if not purchaseRemote then
         NotifyError("Auto Weather", "Could not find PurchaseWeatherEvent remote.")
@@ -305,6 +305,7 @@ local function autoBuyWeather(weatherType)
     end)
 end
 
+
 -- =========================
 -- TELEPORT FUNCTION
 -- =========================
@@ -322,131 +323,6 @@ local function teleportTo(posList)
         hrp.CFrame = chosen
     end
 end
-
--------------------------------------------
------ =======[ AUTO EVENT FARM FEATURE ]
--------------------------------------------
-local EventFarm = {
-    Enabled = false,
-    IsTeleported = false,
-    SavedCFrame = nil,
-    EventTarget = nil,
-    TeleportTime = nil,
-    FloatPlatform = nil,
-    KnownEvents = {}
-}
-
-function EventFarm:CreateFloatPlatform()
-    if self.FloatPlatform then return end
-    local char = player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    self.FloatPlatform = Instance.new("Part")
-    self.FloatPlatform.Anchored = true
-    self.FloatPlatform.Size = Vector3.new(10, 1, 10)
-    self.FloatPlatform.Transparency = 1
-    self.FloatPlatform.CanCollide = true
-    self.FloatPlatform.Name = "EventFloatPlatform"
-    self.FloatPlatform.Parent = workspace
-
-    task.spawn(function()
-        while self.FloatPlatform and self.FloatPlatform.Parent do
-            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                self.FloatPlatform.Position = player.Character.HumanoidRootPart.Position - Vector3.new(0, 3.5, 0)
-            end
-            task.wait(0.1)
-        end
-    end)
-end
-
-function EventFarm:DestroyFloatPlatform()
-    if self.FloatPlatform then
-        self.FloatPlatform:Destroy()
-        self.FloatPlatform = nil
-    end
-end
-
-function EventFarm:TeleportTo(position)
-    local char = player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        self.SavedCFrame = hrp.CFrame
-        hrp.CFrame = CFrame.new(position + Vector3.new(0, 10, 0))
-    end
-end
-
-function EventFarm:ReturnToOriginalPosition()
-    if self.SavedCFrame then
-        local char = player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = self.SavedCFrame
-        end
-        self.SavedCFrame = nil
-    end
-end
-
-function EventFarm:UpdateKnownEvents()
-    self.KnownEvents = {}
-    local props = workspace:FindFirstChild("Props")
-    if props then
-        for _, child in ipairs(props:GetChildren()) do
-            if child:IsA("Model") and child.PrimaryPart then
-                self.KnownEvents[child.Name:lower()] = child
-            end
-        end
-    end
-end
-
-function EventFarm:StartMonitoring()
-    local props = workspace:FindFirstChild("Props")
-    if props then
-        props.ChildAdded:Connect(function() self:UpdateKnownEvents() end)
-        props.ChildRemoved:Connect(function() self:UpdateKnownEvents() end)
-    end
-    self:UpdateKnownEvents()
-
-    task.spawn(function()
-        while true do
-            pcall(function()
-                if self.Enabled then
-                    if not self.IsTeleported then
-                        self:UpdateKnownEvents()
-                        for name, model in pairs(self.KnownEvents) do
-                            NotifyInfo("Event Detected", "Teleporting to " .. model.Name)
-                            self:TeleportTo(model:GetPivot().Position)
-                            self:CreateFloatPlatform()
-                            self.IsTeleported = true
-                            self.TeleportTime = tick()
-                            self.EventTarget = model.Name
-                            break
-                        end
-                    else
-                        local eventIsGone = not (self.EventTarget and self.KnownEvents[self.EventTarget:lower()])
-                        local timeout = tick() - (self.TeleportTime or 0) > 900
-
-                        if eventIsGone or timeout then
-                            NotifyInfo("Event Ended", "Returning to original position.")
-                            self:ReturnToOriginalPosition()
-                            self:DestroyFloatPlatform()
-                            self.IsTeleported = false
-                            self.EventTarget = nil
-                        end
-                    end
-                elseif self.IsTeleported then
-                    self:ReturnToOriginalPosition()
-                    self:DestroyFloatPlatform()
-                    self.IsTeleported = false
-                    self.EventTarget = nil
-                end
-            end)
-            task.wait(2)
-        end
-    end)
-end
-
-EventFarm:StartMonitoring()
 
 -------------------------------------------
 ----- =======[ RESPAWN HANDLER ]
@@ -501,7 +377,6 @@ WindUI:SetNotificationLower(true)
 local Home = Window:Tab({ Title = "Developer Info", Icon = "hard-drive" })
 local Main = Window:Tab({ Title = "Main", Icon = "toggle-right" })
 local AutoFarm = Window:Tab({ Title = "Auto Farm", Icon = "map" })
-local EventFarmTab = Window:Tab({ Title = "Event Farm", Icon = "star" })
 local UtilitiesTab = Window:Tab({ Title = "Utilities", Icon = "atom" })
 local FishNotif = Window:Tab({ Title = "Fish Notification", Icon = "bell-ring" })
 local TradeTab = Window:Tab({ Title = "Auto Trade", Icon = "handshake" })
@@ -614,61 +489,343 @@ autoSellToggle = Main:Toggle({
 })
 
 -------------------------------------------
------ =======[ AUTO FARM TAB ]
+----- =======[ AUTO FARM TAB (NEW) ]
 -------------------------------------------
-local island_locations = {
+local floatPlatform = nil
+
+local function floatingPlat(enabled)
+	if enabled then
+			local char = player.Character or player.CharacterAdded:Wait()
+			if not char then return end
+
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+
+			floatPlatform = Instance.new("Part")
+			floatPlatform.Anchored = true
+			floatPlatform.Size = Vector3.new(10, 1, 10)
+			floatPlatform.Transparency = 1
+			floatPlatform.CanCollide = true
+			floatPlatform.Name = "FloatPlatform"
+			floatPlatform.Parent = workspace
+
+			task.spawn(function()
+				while floatPlatform and floatPlatform.Parent do
+					pcall(function()
+						floatPlatform.Position = hrp.Position - Vector3.new(0, 3.5, 0)
+					end)
+					task.wait(0.1)
+				end
+			end)
+
+			NotifySuccess("Float Enabled", "This feature has been successfully activated!")
+		else
+			if floatPlatform then
+				floatPlatform:Destroy()
+				floatPlatform = nil
+			end
+			NotifyWarning("Float Disabled", "Feature disabled")
+		end
+end
+  
+local workspace = game:GetService("Workspace")  
+local knownEvents = {}
+
+local function teleportToEvent(position)
+	local char = player.Character or player.CharacterAdded:Wait()
+	if char then
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.CFrame = CFrame.new(position + Vector3.new(0, 10, 0))
+		end
+	end
+end
+
+local function updateKnownEvents()
+	knownEvents = {}
+	local props = workspace:FindFirstChild("Props")
+	if props then
+		for _, child in ipairs(props:GetChildren()) do
+			if child:IsA("Model") and child.PrimaryPart then
+				knownEvents[child.Name:lower()] = child
+			end
+		end
+	end
+end
+
+local function monitorEvents()
+	local props = workspace:FindFirstChild("Props")
+	if not props then
+		workspace.ChildAdded:Connect(function(child)
+			if child.Name == "Props" then
+				task.wait(0.3)
+				monitorEvents()
+			end
+		end)
+		return
+	end
+
+	props.ChildAdded:Connect(function() task.wait(0.3); updateKnownEvents() end)
+	props.ChildRemoved:Connect(function() task.wait(0.3); updateKnownEvents() end)
+	updateKnownEvents()
+end
+
+monitorEvents()
+
+local autoTPEvent = false
+local savedCFrame = nil
+local monitoringTP = false
+local alreadyTeleported = false
+local teleportTime = nil
+local eventTarget = nil
+
+local function saveOriginalPosition()
+	local char = player.Character or player.CharacterAdded:Wait()
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		savedCFrame = char.HumanoidRootPart.CFrame
+	end
+end
+
+local function returnToOriginalPosition()
+	if savedCFrame then
+		local char = player.Character or player.CharacterAdded:Wait()
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			char.HumanoidRootPart.CFrame = savedCFrame
+		end
+	end
+end
+
+local function isEventStillActive(name)
+	updateKnownEvents()
+	return knownEvents[name:lower()] ~= nil
+end
+
+local function monitorAutoTP()
+	if monitoringTP then return end
+	monitoringTP = true
+
+	task.spawn(function()
+        while true do
+            if autoTPEvent then
+                if not alreadyTeleported then
+                    updateKnownEvents()
+                    for _, eventModel in pairs(knownEvents) do
+                        saveOriginalPosition()
+                        teleportToEvent(eventModel:GetPivot().Position)
+                        if typeof(floatingPlat) == "function" then floatingPlat(true) end
+                        alreadyTeleported = true
+                        teleportTime = tick()
+                        eventTarget = eventModel.Name
+                        NotifyError("Event Farm", "Teleported to: " .. eventTarget)
+                        break
+                    end
+                else
+                    if teleportTime and (tick() - teleportTime >= 900) then
+                        returnToOriginalPosition()
+                        if typeof(floatingPlat) == "function" then floatingPlat(false) end
+                        alreadyTeleported = false
+                        teleportTime = nil
+                        eventTarget = nil
+                        NotifyInfo("Event Timeout", "Returned after 15 minutes.")
+                    elseif eventTarget and not isEventStillActive(eventTarget) then
+                        returnToOriginalPosition()
+                        if typeof(floatingPlat) == "function" then floatingPlat(false) end
+                        alreadyTeleported = false
+                        teleportTime = nil
+                        NotifyInfo("Event Ended", "Returned to start position.")
+                    end
+                end
+            else
+                if alreadyTeleported then
+                    returnToOriginalPosition()
+                    if typeof(floatingPlat) == "function" then floatingPlat(false) end
+                    alreadyTeleported = false
+                    teleportTime = nil
+                    eventTarget = nil
+                end
+            end
+            task.wait(1)
+        end
+    end)
+end
+
+local selectedIsland = "Crater Islands"
+local isAutoFarmRunning = false
+
+local farmLocations = {
     ["Crater Islands"] = {
-        CFrame.new(1066.1864, 57.2025681, 5045.5542, -0.682534158, 1.00865822e-08, 0.730853677, -5.8900711e-09, 1, -1.93017531e-08, -0.730853677, -1.74788859e-08, -0.682534158),
-        CFrame.new(1057.28992, 33.0884132, 5133.79883, 0.833871782, 5.44149223e-08, 0.551958203, -6.58184218e-09, 1, -8.86416984e-08, -0.551958203, 7.02829084e-08, 0.833871782),
+    	CFrame.new(1066.1864, 57.2025681, 5045.5542, -0.682534158, 1.00865822e-08, 0.730853677, -5.8900711e-09, 1, -1.93017531e-08, -0.730853677, -1.74788859e-08, -0.682534158),
+    	CFrame.new(1057.28992, 33.0884132, 5133.79883, 0.833871782, 5.44149223e-08, 0.551958203, -6.58184218e-09, 1, -8.86416984e-08, -0.551958203, 7.02829084e-08, 0.833871782),
+    	CFrame.new(988.954712, 42.8254471, 5088.71289, -0.849417388, -9.89310394e-08, 0.527721584, -5.96115086e-08, 1, 9.15179328e-08, -0.527721584, 4.62786431e-08, -0.849417388),
+    	CFrame.new(1006.70685, 17.2302666, 5092.14844, -0.989664078, 5.6538525e-09, -0.143405005, 9.14879283e-09, 1, -2.3711717e-08, 0.143405005, -2.47786183e-08, -0.989664078),
+    	CFrame.new(1025.02356, 2.77259707, 5011.47021, -0.974474192, -6.87871804e-08, 0.224499553, -4.47472104e-08, 1, 1.12170284e-07, -0.224499553, 9.92613209e-08, -0.974474192),
+    	CFrame.new(1071.14551, 3.528404, 5038.00293, -0.532300115, 3.38677708e-08, 0.84655571, 6.69992914e-08, 1, 2.12149165e-09, -0.84655571, 5.7847906e-08, -0.532300115),
+    	CFrame.new(1022.55457, 16.6277809, 5066.28223, 0.721996129, 0, -0.691897094, 0, 1, 0, 0.691897094, 0, 0.721996129),
     },
     ["Tropical Grove"] = { CFrame.new(-2165.05469, 2.77070165, 3639.87451, -0.589090407, -3.61497356e-08, -0.808067143, -3.20645626e-08, 1, -2.13606164e-08, 0.808067143, 1.3326984e-08, -0.589090407) },
-    ["Vulcano"] = { CFrame.new(-701.447937, 48.1446075, 93.1546631, -0.0770962164, 1.34335654e-08, -0.997023642, 9.84464776e-09, 1, 1.27124169e-08, 0.997023642, -8.83526763e-09, -0.0770962164) },
+    ["Vulcano"] = {
+    	CFrame.new(-701.447937, 48.1446075, 93.1546631, -0.0770962164, 1.34335654e-08, -0.997023642, 9.84464776e-09, 1, 1.27124169e-08, 0.997023642, -8.83526763e-09, -0.0770962164),
+    	CFrame.new(-654.994934, 57.2567711, 75.098526, -0.540957272, 2.58946509e-09, -0.841050088, -7.58775585e-08, 1, 5.18827363e-08, 0.841050088, 9.1883166e-08, -0.540957272),
+    },
     ["Coral Reefs"] = { CFrame.new(-3118.39624, 2.42531538, 2135.26392, 0.92336154, -1.0069185e-07, -0.383931547, 8.0607947e-08, 1, -6.84016968e-08, 0.383931547, 3.22115596e-08, 0.92336154) },
     ["Winter"] = { CFrame.new(2036.15308, 6.54998732, 3381.88916, 0.943401575, 4.71338666e-08, -0.331652641, -3.28136842e-08, 1, 4.87781051e-08, 0.331652641, -3.51345975e-08, 0.943401575) },
     ["Machine"] = { CFrame.new(-1459.3772, 14.7103214, 1831.5188, 0.777951121, 2.52131862e-08, -0.628324807, -5.24126378e-08, 1, -2.47663063e-08, 0.628324807, 5.21991339e-08, 0.777951121) },
-    ["Treasure Room"] = { CFrame.new(-3625.0708, -279.074219, -1594.57605, 0.918176472, -3.97606392e-09, -0.396171629, -1.12946204e-08, 1, -3.62128851e-08, 0.396171629, 3.77244298e-08, 0.918176472) },
-    ["Sisyphus Statue"] = { CFrame.new(-3777.43433, -135.074417, -975.198975, -0.284491211, -1.02338751e-08, -0.958678663, 6.38407585e-08, 1, -2.96199456e-08, 0.958678663, -6.96293867e-08, -0.284491211) },
+    ["Treasure Room"] = {
+    	CFrame.new(-3625.0708, -279.074219, -1594.57605, 0.918176472, -3.97606392e-09, -0.396171629, -1.12946204e-08, 1, -3.62128851e-08, 0.396171629, 3.77244298e-08, 0.918176472),
+    	CFrame.new(-3600.72632, -276.06427, -1640.79663, -0.696130812, -6.0491181e-09, 0.717914939, -1.09490363e-08, 1, -2.19084972e-09, -0.717914939, -9.38559541e-09, -0.696130812),
+    	CFrame.new(-3548.52222, -269.309845, -1659.26685, 0.0472991578, -4.08685423e-08, 0.998880744, -7.68598838e-08, 1, 4.45538149e-08, -0.998880744, -7.88812216e-08, 0.0472991578),
+    	CFrame.new(-3581.84155, -279.09021, -1696.15637, -0.999634147, -0.000535600528, -0.0270430837, -0.000448358158, 0.999994695, -0.00323198596, 0.0270446707, -0.00321867829, -0.99962908),
+    	CFrame.new(-3601.34302, -282.790955, -1629.37036, -0.526346684, 0.00143659476, 0.850268841, -0.000266355521, 0.999998271, -0.00185445137, -0.850269973, -0.00120255165, -0.526345372)
+    },
+    ["Sisyphus Statue"] = {
+    	CFrame.new(-3777.43433, -135.074417, -975.198975, -0.284491211, -1.02338751e-08, -0.958678663, 6.38407585e-08, 1, -2.96199456e-08, 0.958678663, -6.96293867e-08, -0.284491211),
+    	CFrame.new(-3697.77124, -135.074417, -886.946411, 0.979794085, -9.24526766e-09, 0.200008959, 1.35701708e-08, 1, -2.02526174e-08, -0.200008959, 2.25575487e-08, 0.979794085),
+    	CFrame.new(-3764.021, -135.074417, -903.742493, 0.785813689, -3.05788426e-08, -0.618463278, -4.87374336e-08, 1, -1.11368585e-07, 0.618463278, 1.17657272e-07, 0.785813689)
+    },
     ["Fisherman Island"] = { CFrame.new(-75.2439423, 3.24433279, 3103.45093, -0.996514142, -3.14880424e-08, -0.0834242329, -3.84156422e-08, 1, 8.14354024e-08, 0.0834242329, 8.43563228e-08, -0.996514142) },
 }
 
-for name, pos in pairs(island_locations) do
-    AutoFarm:Button({
-        Title = name,
-        Callback = function()
-            lastFarmPosition = pos
-            teleportTo(pos)
-            task.wait(0.8)
-            
-            state.AutoFish = true
-            startAutoFish()
-
-            if autoFishToggle then autoFishToggle:Set(true) end
-            saveConfig()
+local obtainedFishCount = 0
+local obtainedLimit = 30
+local Remote = getNetFolder() and getNetFolder():FindFirstChild("RE/ObtainedNewFishNotification")
+if Remote then
+    Remote.OnClientEvent:Connect(function(_, _, data)
+        if data and data.InventoryItem and data.InventoryItem.UUID then
+            obtainedFishCount = obtainedFishCount + 1
         end
-    })
+    end)
 end
 
--------------------------------------------
------ =======[ EVENT FARM TAB ]
--------------------------------------------
-EventFarmTab:Toggle({
-	Title = "Auto Farm Event",
-	Desc = "Automatically teleports to and farms world events. !!USE AT YOUR OWN RISK!!",
-	Value = false,
-	Callback = function(Value)
-		EventFarm.Enabled = Value
-        if Value then
-            NotifyInfo("Auto Farm Event", "Scanning for active world events...")
-        else
-            NotifyWarning("Auto Farm Event", "Event farming disabled.")
+local function sellItems()
+    local sellRemote = getNetFolder() and getNetFolder():FindFirstChild("RF/SellAllItems")
+    if sellRemote then
+        sellRemote:InvokeServer()
+    end
+    obtainedFishCount = 0
+end
+
+local function startAutoFarmLoop()
+    task.spawn(function()
+        NotifySuccess("Auto Farm Enabled", "Fishing started on island: " .. selectedIsland)
+        while isAutoFarmRunning do  
+            local islandSpots = farmLocations[selectedIsland]
+            local location
+
+            if type(islandSpots) == "table" and #islandSpots > 0 then  
+                location = islandSpots[math.random(1, #islandSpots)]  
+            else  
+                location = islandSpots  
+            end  
+
+            if not location then  
+                NotifyError("Invalid Island", "Selected island name not found.")  
+                return  
+            end  
+
+            lastFarmPosition = location -- Save for respawn handler
+            teleportTo(location)
+            task.wait(1.5)  
+
+            state.AutoFish = true
+            startAutoFish()
+            if autoFishToggle then autoFishToggle:Set(true) end
+
+            while isAutoFarmRunning do
+                repeat task.wait(0.3) until not isAutoFarmRunning or obtainedFishCount >= obtainedLimit  
+
+                if not isAutoFarmRunning then  
+                    stopAutoFish()
+                    if autoFishToggle then autoFishToggle:Set(false) end
+                    NotifyWarning("Auto Farm Stopped", "Auto Farm manually disabled. Auto Fish stopped.")  
+                    break  
+                end  
+
+                NotifyInfo("Fish Threshold Reached", "Selling all fishes...")  
+                sellItems()  
+                obtainedFishCount = 0
+                task.wait(0.5)
+            end
         end
+    end)
+end      
+
+local nameList = {}
+for name, _ in pairs(farmLocations) do
+    table.insert(nameList, name)
+end
+table.sort(nameList)
+
+AutoFarm:Dropdown({
+    Title = "Farm Island",
+    Values = nameList,
+    Default = nameList[1],
+    Callback = function(selectedName)
+        if farmLocations[selectedName] then
+            selectedIsland = selectedName
+            NotifySuccess("Island Selected", "Farming location set to " .. selectedName)
+        else
+            NotifyError("Invalid Selection", "The island name is not recognized.")
+        end
+    end
+})
+
+AutoFarm:Input({
+	Title = "Fish Threshold",
+    Desc = "Number of fish to catch before selling all.",
+	Placeholder = "Default: 30",
+	Default = tostring(obtainedLimit),
+	Callback = function(value)
+		local number = tonumber(value)
+		if number and number > 0 then
+		  obtainedLimit = number
+			NotifySuccess("Threshold Set", "Fish threshold set to " .. number)
+		else
+		  NotifyError("Invalid Input", "Please enter a valid number greater than 0.")
+		end
+	end,
+})
+
+AutoFarm:Toggle({
+	Title = "Start Auto Farm",
+	Callback = function(value)
+		isAutoFarmRunning = value
+		if value then
+			startAutoFarmLoop()
+		else
+			state.AutoFish = false
+			stopAutoFish()
+            if autoFishToggle then autoFishToggle:Set(false) end
+		end
 	end
 })
+
+AutoFarm:Toggle({
+	Title = "Auto Farm Event",
+	Desc = "Automatically teleports to world events. !! USE AT YOUR OWN RISK !!",
+	Default = false,
+	Callback = function(state)
+		autoTPEvent = state
+		if autoTPEvent then
+            monitorAutoTP()
+			NotifyInfo("Event Farm", "Now monitoring for world events.")
+		else
+			if alreadyTeleported then
+				returnToOriginalPosition()
+				if typeof(floatingPlat) == "function" then
+					floatingPlat(false)
+				end
+				alreadyTeleported = false
+			end
+            NotifyWarning("Event Farm", "Event monitoring stopped.")
+		end
+	end
+})
+
 
 -------------------------------------------
 ----- =======[ UTILITIES TAB ]
 -------------------------------------------
-
+local blockNotif = false
 UtilitiesTab:Dropdown({
     Title = "Auto Buy Weather",
     Desc = "Automatically buys selected weather events when they expire.",
@@ -676,12 +833,14 @@ UtilitiesTab:Dropdown({
     Multi = true,
     AllowNone = true,
     Callback = function(selected)
+        -- Stop any weather types that were deselected
         for weatherType, active in pairs(weatherActive) do
             if active and not table.find(selected, weatherType) then
                 weatherActive[weatherType] = false
                 NotifyWarning("Auto Weather", "Auto buying " .. weatherType .. " has been stopped.")
             end
         end
+        -- Start any new weather types that were selected
         for _, weatherType in pairs(selected) do
             if not weatherActive[weatherType] then
                 weatherActive[weatherType] = true
@@ -797,19 +956,19 @@ TradeTab:Input({
    Desc = "Enter the Display Name or Username of the player to trade with.",
    Placeholder = "Enter player name...",
    Callback = function(displayName)
-      targetUserId = nil 
-      if displayName == "" then
-         NotifyInfo("Trade Target Cleared", "No player is targeted for trades.")
-         return
-      end
-      for _, p in ipairs(Players:GetPlayers()) do
-         if string.lower(p.DisplayName) == string.lower(displayName) or string.lower(p.Name) == string.lower(displayName) then
-            targetUserId = p.UserId
-            NotifySuccess("Trade Target Set", "Targeting " .. p.Name .. " for trades.")
-            return
-         end
-      end
-      NotifyError("Trade Target Not Found", "Could not find a player with that name.", 3)
+       targetUserId = nil -- Reset target on new input
+       if displayName == "" then
+          NotifyInfo("Trade Target Cleared", "No player is targeted for trades.")
+          return
+       end
+       for _, p in ipairs(Players:GetPlayers()) do
+          if string.lower(p.DisplayName) == string.lower(displayName) or string.lower(p.Name) == string.lower(displayName) then
+             targetUserId = p.UserId
+             NotifySuccess("Trade Target Set", "Targeting " .. p.Name .. " for trades.")
+             return
+          end
+       end
+       NotifyError("Trade Target Not Found", "Could not find a player with that name.", 3)
    end,
 })
 
@@ -817,12 +976,12 @@ TradeTab:Toggle({
    Title = "Enable Item-Click Trading",
    Desc = "When enabled, clicking an item in your inventory will send a trade request instead of equipping it.",
    Callback = function(val)
-      tradeActive = val
-      if val then
-         NotifyInfo("Trade Mode Activated", "Click an item in your inventory to trade it.")
-      else
-         NotifyWarning("Trade Mode Deactivated", "Item-click trading is now off.")
-      end
+       tradeActive = val
+       if val then
+          NotifyInfo("Trade Mode Activated", "Click an item in your inventory to trade it.")
+       else
+          NotifyWarning("Trade Mode Deactivated", "Item-click trading is now off.")
+       end
    end,
 })
 
@@ -887,7 +1046,7 @@ TradeTab:Button({
 
             for i, uuid in ipairs(itemsToTrade) do
                 initiateTrade:InvokeServer(targetUserId, uuid)
-                task.wait(0.75) 
+                task.wait(0.75) -- Delay to prevent spamming the server
             end
 
             NotifyInfo("Trade Complete", "Finished sending all trade requests.")
@@ -944,7 +1103,6 @@ local function sendFishWebhook(fishName, rarityText, assetId, itemId, variantId)
     end
 end
 
-local REObtainedNewFishNotification = getNetFolder() and getNetFolder():FindFirstChild("RE/ObtainedNewFishNotification")
 if REObtainedNewFishNotification then
     REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _, eventData)
         lastCatchTimestamp = os.time()
@@ -1037,7 +1195,7 @@ pcall(function()
             elseif not targetUserId then
                 NotifyError("Trade Failed", "No target player is set. Please enter a player's name.")
             end
-            return nil 
+            return nil -- Prevent the original EquipItem from firing
         end
 
         return oldNamecall(self, unpack(args))
