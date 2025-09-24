@@ -13,6 +13,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
+local workspace = game:GetService("Workspace")
 
 -- Safe require helper from Rayfield version
 local function safeRequire(pathTbl)
@@ -243,8 +244,7 @@ local function startAutoFish()
                 chargeFunc:InvokeServer(workspace:GetServerTimeNow())
                 task.wait(0.1)
                 startMini:InvokeServer(-0.75, 1)
-
-                -- NEW: Play the reeling animation
+                
                 pcall(function()
                     if AnimationController and AnimationController.PlayAnimation then
                         AnimationController:PlayAnimation("Reel")
@@ -326,180 +326,127 @@ end
 -------------------------------------------
 ----- =======[ AUTO EVENT FARM FEATURE ]
 -------------------------------------------
-local workspace = game:GetService("Workspace")
-local floatPlatform = nil
+local EventFarm = {
+    Enabled = false,
+    IsTeleported = false,
+    SavedCFrame = nil,
+    EventTarget = nil,
+    TeleportTime = nil,
+    FloatPlatform = nil,
+    KnownEvents = {}
+}
 
-local function floatingPlat(enabled)
-	if enabled then
-			local charFolder = workspace:WaitForChild("Characters", 5)
-			local char = charFolder:FindFirstChild(player.Name)
-			if not char then return end
+function EventFarm:CreateFloatPlatform()
+    if self.FloatPlatform then return end
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
-			local hrp = char:FindFirstChild("HumanoidRootPart")
-			if not hrp then return end
+    self.FloatPlatform = Instance.new("Part")
+    self.FloatPlatform.Anchored = true
+    self.FloatPlatform.Size = Vector3.new(10, 1, 10)
+    self.FloatPlatform.Transparency = 1
+    self.FloatPlatform.CanCollide = true
+    self.FloatPlatform.Name = "EventFloatPlatform"
+    self.FloatPlatform.Parent = workspace
 
-			floatPlatform = Instance.new("Part")
-			floatPlatform.Anchored = true
-			floatPlatform.Size = Vector3.new(10, 1, 10)
-			floatPlatform.Transparency = 1
-			floatPlatform.CanCollide = true
-			floatPlatform.Name = "FloatPlatform"
-			floatPlatform.Parent = workspace
-
-			task.spawn(function()
-				while floatPlatform and floatPlatform.Parent do
-					pcall(function()
-						floatPlatform.Position = hrp.Position - Vector3.new(0, 3.5, 0)
-					end)
-					task.wait(0.1)
-				end
-			end)
-
-			NotifySuccess("Float Enabled", "This feature has been successfully activated!")
-		else
-			if floatPlatform then
-				floatPlatform:Destroy()
-				floatPlatform = nil
-			end
-			NotifyWarning("Float Disabled", "Feature disabled")
-		end
+    task.spawn(function()
+        while self.FloatPlatform and self.FloatPlatform.Parent do
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                self.FloatPlatform.Position = player.Character.HumanoidRootPart.Position - Vector3.new(0, 3.5, 0)
+            end
+            task.wait(0.1)
+        end
+    end)
 end
 
-local knownEvents = {}
-
-local function teleportToEventPosition(position)
-	local char = workspace:FindFirstChild("Characters"):FindFirstChild(player.Name)
-	if char then
-		local hrp = char:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			hrp.CFrame = CFrame.new(position + Vector3.new(0, 10, 0))
-		end
-	end
+function EventFarm:DestroyFloatPlatform()
+    if self.FloatPlatform then
+        self.FloatPlatform:Destroy()
+        self.FloatPlatform = nil
+    end
 end
 
-local function updateKnownEvents()
-	knownEvents = {}
-	local props = workspace:FindFirstChild("Props")
-	if props then
-		for _, child in ipairs(props:GetChildren()) do
-			if child:IsA("Model") and child.PrimaryPart then
-				knownEvents[child.Name:lower()] = child
-			end
-		end
-	end
+function EventFarm:TeleportTo(position)
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        self.SavedCFrame = hrp.CFrame
+        hrp.CFrame = CFrame.new(position + Vector3.new(0, 10, 0))
+    end
 end
 
-local function monitorEvents()
-	local props = workspace:FindFirstChild("Props")
-	if not props then
-		workspace.ChildAdded:Connect(function(child)
-			if child.Name == "Props" then
-				task.wait(0.3)
-				monitorEvents()
-			end
-		end)
-		return
-	end
-
-	props.ChildAdded:Connect(function()
-		task.wait(0.3)
-		updateKnownEvents()
-	end)
-
-	props.ChildRemoved:Connect(function()
-		task.wait(0.3)
-		updateKnownEvents()
-	end)
-
-	updateKnownEvents()
+function EventFarm:ReturnToOriginalPosition()
+    if self.SavedCFrame then
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = self.SavedCFrame
+        end
+        self.SavedCFrame = nil
+    end
 end
 
-monitorEvents()
-
-local autoTPEvent = false
-local savedCFrame = nil
-local monitoringTP = false
-local alreadyTeleported = false
-local teleportTime = nil
-local eventTarget = nil
-
-local function saveOriginalPosition()
-	local char = workspace:FindFirstChild("Characters"):FindFirstChild(player.Name)
-	if char and char:FindFirstChild("HumanoidRootPart") then
-		savedCFrame = char.HumanoidRootPart.CFrame
-	end
+function EventFarm:UpdateKnownEvents()
+    self.KnownEvents = {}
+    local props = workspace:FindFirstChild("Props")
+    if props then
+        for _, child in ipairs(props:GetChildren()) do
+            if child:IsA("Model") and child.PrimaryPart then
+                self.KnownEvents[child.Name:lower()] = child
+            end
+        end
+    end
 end
 
-local function returnToOriginalPosition()
-	if savedCFrame then
-		local char = workspace:FindFirstChild("Characters"):FindFirstChild(player.Name)
-		if char and char:FindFirstChild("HumanoidRootPart") then
-			char.HumanoidRootPart.CFrame = savedCFrame
-		end
-	end
+function EventFarm:StartMonitoring()
+    local props = workspace:FindFirstChild("Props")
+    if props then
+        props.ChildAdded:Connect(function() self:UpdateKnownEvents() end)
+        props.ChildRemoved:Connect(function() self:UpdateKnownEvents() end)
+    end
+    self:UpdateKnownEvents()
+
+    task.spawn(function()
+        while true do
+            pcall(function()
+                if self.Enabled then
+                    if not self.IsTeleported then
+                        self:UpdateKnownEvents()
+                        for name, model in pairs(self.KnownEvents) do
+                            NotifyInfo("Event Detected", "Teleporting to " .. model.Name)
+                            self:TeleportTo(model:GetPivot().Position)
+                            self:CreateFloatPlatform()
+                            self.IsTeleported = true
+                            self.TeleportTime = tick()
+                            self.EventTarget = model.Name
+                            break
+                        end
+                    else
+                        local eventIsGone = not (self.EventTarget and self.KnownEvents[self.EventTarget:lower()])
+                        local timeout = tick() - (self.TeleportTime or 0) > 900
+
+                        if eventIsGone or timeout then
+                            NotifyInfo("Event Ended", "Returning to original position.")
+                            self:ReturnToOriginalPosition()
+                            self:DestroyFloatPlatform()
+                            self.IsTeleported = false
+                            self.EventTarget = nil
+                        end
+                    end
+                elseif self.IsTeleported then
+                    self:ReturnToOriginalPosition()
+                    self:DestroyFloatPlatform()
+                    self.IsTeleported = false
+                    self.EventTarget = nil
+                end
+            end)
+            task.wait(2)
+        end
+    end)
 end
 
-local function isEventStillActive(name)
-	updateKnownEvents()
-	return knownEvents[name:lower()] ~= nil
-end
-
-local function monitorAutoTP()
-	if monitoringTP then return end
-	monitoringTP = true
-
-	while true do
-		if autoTPEvent then
-			if not alreadyTeleported then
-				updateKnownEvents()
-				for _, eventModel in pairs(knownEvents) do
-					saveOriginalPosition()
-					teleportToEventPosition(eventModel:GetPivot().Position)
-					if typeof(floatingPlat) == "function" then
-						floatingPlat(true)
-					end
-					alreadyTeleported = true
-					teleportTime = tick()
-					eventTarget = eventModel.Name
-					NotifyError("Event Farm", "Teleported to: " .. eventTarget)
-					break
-				end
-			else
-				if teleportTime and (tick() - teleportTime >= 900) then
-					returnToOriginalPosition()
-					if typeof(floatingPlat) == "function" then
-						floatingPlat(false)
-					end
-					alreadyTeleported = false
-					teleportTime = nil
-					eventTarget = nil
-					NotifyInfo("Event Timeout", "Returned after 15 minutes.")
-				elseif eventTarget and not isEventStillActive(eventTarget) then
-					returnToOriginalPosition()
-					if typeof(floatingPlat) == "function" then
-						floatingPlat(false)
-					end
-					alreadyTeleported = false
-					teleportTime = nil
-					NotifyInfo("Event Ended", "Returned to start position.")
-				end
-			end
-		else
-			if alreadyTeleported then
-				returnToOriginalPosition()
-				if typeof(floatingPlat) == "function" then
-					floatingPlat(false)
-				end
-				alreadyTeleported = false
-				teleportTime = nil
-				eventTarget = nil
-			end
-		end
-		task.wait(1)
-	end
-end
-
-task.spawn(monitorAutoTP)
+EventFarm:StartMonitoring()
 
 -------------------------------------------
 ----- =======[ RESPAWN HANDLER ]
@@ -709,19 +656,12 @@ EventFarmTab:Toggle({
 	Desc = "Automatically teleports to and farms world events. !!USE AT YOUR OWN RISK!!",
 	Value = false,
 	Callback = function(Value)
-		autoTPEvent = Value
-		if Value then
-			NotifyInfo("Auto Farm Event", "Scanning for active world events...")
-		else
-			if alreadyTeleported then
-				returnToOriginalPosition()
-				if typeof(floatingPlat) == "function" then
-					floatingPlat(false)
-				end
-				alreadyTeleported = false
-			end
+		EventFarm.Enabled = Value
+        if Value then
+            NotifyInfo("Auto Farm Event", "Scanning for active world events...")
+        else
             NotifyWarning("Auto Farm Event", "Event farming disabled.")
-		end
+        end
 	end
 })
 
@@ -736,14 +676,12 @@ UtilitiesTab:Dropdown({
     Multi = true,
     AllowNone = true,
     Callback = function(selected)
-        -- Stop any weather types that were deselected
         for weatherType, active in pairs(weatherActive) do
             if active and not table.find(selected, weatherType) then
                 weatherActive[weatherType] = false
                 NotifyWarning("Auto Weather", "Auto buying " .. weatherType .. " has been stopped.")
             end
         end
-        -- Start any new weather types that were selected
         for _, weatherType in pairs(selected) do
             if not weatherActive[weatherType] then
                 weatherActive[weatherType] = true
@@ -859,7 +797,7 @@ TradeTab:Input({
    Desc = "Enter the Display Name or Username of the player to trade with.",
    Placeholder = "Enter player name...",
    Callback = function(displayName)
-      targetUserId = nil -- Reset target on new input
+      targetUserId = nil 
       if displayName == "" then
          NotifyInfo("Trade Target Cleared", "No player is targeted for trades.")
          return
@@ -949,7 +887,7 @@ TradeTab:Button({
 
             for i, uuid in ipairs(itemsToTrade) do
                 initiateTrade:InvokeServer(targetUserId, uuid)
-                task.wait(0.75) -- Delay to prevent spamming the server
+                task.wait(0.75) 
             end
 
             NotifyInfo("Trade Complete", "Finished sending all trade requests.")
@@ -1099,7 +1037,7 @@ pcall(function()
             elseif not targetUserId then
                 NotifyError("Trade Failed", "No target player is set. Please enter a player's name.")
             end
-            return nil -- Prevent the original EquipItem from firing
+            return nil 
         end
 
         return oldNamecall(self, unpack(args))
