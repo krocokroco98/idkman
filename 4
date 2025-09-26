@@ -534,29 +534,31 @@ EventsTab:Section({ Title = "Automatic Event Teleport" })
 
 local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Shocked", "Black Hole", "Meteor Rain"}
 
+-- ✅ Fixed: search recursively anywhere inside "!!! MENU RINGS"
 local function findEventPart(eventName)
     local menuRingsFolder = workspace:FindFirstChild("!!! MENU RINGS")
-    local propsFolder = menuRingsFolder and menuRingsFolder:FindFirstChild("Props")
-    if not propsFolder then return nil end
-    
-    local eventNameLower = eventName:lower()
-    
-    for _, descendant in ipairs(propsFolder:GetDescendants()) do
-        if descendant.Name == "DisplayName" and descendant:IsA("TextLabel") then
-            if descendant.Text:lower() == eventNameLower then
-                local currentAncestor = descendant
-                while currentAncestor and currentAncestor ~= propsFolder do
-                    if currentAncestor:IsA("BasePart") then
-                        return currentAncestor
-                    end
+    if not menuRingsFolder then return nil end
+
+    local eventNameLower = string.lower(eventName)
+
+    for _, descendant in ipairs(menuRingsFolder:GetDescendants()) do
+        if descendant:IsA("TextLabel") and descendant.Name == "DisplayName" then
+            if string.lower(descendant.Text) == eventNameLower then
+                -- Go up until we find a Model with a PrimaryPart or BasePart
+                local currentAncestor = descendant.Parent
+                while currentAncestor and not currentAncestor:IsA("Model") do
                     currentAncestor = currentAncestor.Parent
+                end
+                if currentAncestor then
+                    return currentAncestor.PrimaryPart or currentAncestor:FindFirstChildWhichIsA("BasePart")
                 end
             end
         end
     end
-    
+
     return nil
 end
+
 
 local autoTPEventDropdown = EventsTab:Dropdown({
     Title = "Select Event",
@@ -774,7 +776,7 @@ TradeTab:Input({
    Desc = "Enter the Display Name or Username of the player to trade with.",
    Placeholder = "Enter player name...",
    Callback = function(displayName)
-       targetUserId = nil -- Reset target on new input
+       targetUserId = nil 
        if displayName == "" then
           NotifyInfo("Trade Target Cleared", "No player is targeted for trades.")
           return
@@ -960,7 +962,6 @@ pcall(function()
     local netFolder = getNetFolder()
     if not netFolder then return end
 
-    -- Auto Accept Trade Logic
     local RFAwaitTradeResponse = netFolder:FindFirstChild("RF/AwaitTradeResponse")
     local autoAcceptTrade = false
 
@@ -989,7 +990,6 @@ pcall(function()
         TradeTab:Paragraph({ Title = "Auto Accept Unavailable", Desc = "Could not find the necessary remote function to enable auto-accepting trades."})
     end
 
-    -- Item-Click Trading Logic
     local mt = getrawmetatable(game)
     if not mt or not mt.__namecall then return end
     
@@ -1000,7 +1000,6 @@ pcall(function()
         local args = {...}
         local method = getnamecallmethod()
         
-        -- The hook for trading
         if tradeActive and tostring(self) == "RE/EquipItem" and method == "FireServer" then
             local uuid = args[1]
             if uuid and targetUserId then
@@ -1014,7 +1013,7 @@ pcall(function()
             elseif not targetUserId then
                 NotifyError("Trade Failed", "No target player is set. Please enter a player's name.")
             end
-            return nil -- Prevent the original EquipItem from firing
+            return nil 
         end
 
         return oldNamecall(self, unpack(args))
