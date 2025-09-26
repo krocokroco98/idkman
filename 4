@@ -248,7 +248,6 @@ local function startAutoFish()
                 task.wait(0.1)
                 startMini:InvokeServer(-0.75, 1)
 
-                -- NEW: Play the reeling animation
                 pcall(function()
                     if AnimationController and AnimationController.PlayAnimation then
                         AnimationController:PlayAnimation("Reel")
@@ -536,7 +535,6 @@ EventsTab:Section({ Title = "Automatic Event Teleport" })
 local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Shocked", "Black Hole", "Meteor Rain"}
 
 local function findEventPart(eventName)
-    -- Corrected path to the Props folder
     local menuRingsFolder = workspace:FindFirstChild("!!! MENU RINGS")
     local propsFolder = menuRingsFolder and menuRingsFolder:FindFirstChild("Props")
     if not propsFolder then return nil end
@@ -598,6 +596,7 @@ task.spawn(function()
         local eventPart = findEventPart(eventTPState.selectedEvent)
 
         if eventPart and not eventTPState.isAtEvent then
+            NotifyInfo("Event Detected", "Teleporting to " .. eventTPState.selectedEvent .. "...")
             eventTPState.isAtEvent = true
             eventTPState.wasAutoFishing = state.AutoFish
             if eventTPState.wasAutoFishing then autoFishToggle:Set(false) end
@@ -622,6 +621,7 @@ task.spawn(function()
             end
 
         elseif not eventPart and eventTPState.isAtEvent then
+            NotifyInfo("Event Ended", "Returning to original position...")
             eventTPState.wasAutoFishing = state.AutoFish
             if eventTPState.wasAutoFishing then autoFishToggle:Set(false) end
 
@@ -653,14 +653,12 @@ UtilitiesTab:Dropdown({
     Multi = true,
     AllowNone = true,
     Callback = function(selected)
-        -- Stop any weather types that were deselected
         for weatherType, active in pairs(weatherActive) do
             if active and not table.find(selected, weatherType) then
                 weatherActive[weatherType] = false
                 NotifyWarning("Auto Weather", "Auto buying " .. weatherType .. " has been stopped.")
             end
         end
-        -- Start any new weather types that were selected
         for _, weatherType in pairs(selected) do
             if not weatherActive[weatherType] then
                 weatherActive[weatherType] = true
