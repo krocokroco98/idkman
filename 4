@@ -532,9 +532,9 @@ end
 
 EventsTab:Section({ Title = "Automatic Event Teleport" })
 
-local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Shocked", "Black Hole", "Meteor Rain"}
+local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Shocked", "Black Hole", "Megalodon Hunt"}
 
--- ✅ Fixed: search recursively anywhere inside "!!! MENU RINGS"
+-- ✅ Fixed recursive search
 local function findEventPart(eventName)
     local menuRingsFolder = workspace:FindFirstChild("!!! MENU RINGS")
     if not menuRingsFolder then return nil end
@@ -559,23 +559,28 @@ local function findEventPart(eventName)
     return nil
 end
 
+-- store multiple selected events
+local selectedEvents = {}
 
+-- ✅ Multi-select dropdown
 local autoTPEventDropdown = EventsTab:Dropdown({
-    Title = "Select Event",
+    Title = "Select Events",
     Values = eventNames,
+    Multi = true,
     AllowNone = true,
-    Callback = function(value)
-        eventTPState.selectedEvent = value
+    Callback = function(values)
+        selectedEvents = values
     end
 })
 
 local autoTPEventToggle = EventsTab:Toggle({
-    Title = "Enable Auto TP to Event",
-    Desc = "Automatically teleports you to the selected event when it appears.",
+    Title = "Enable Auto TP to Events",
+    Desc = "Automatically teleports you to any of the selected events when they appear.",
     Value = false,
     Callback = function(value)
         eventTPState.enabled = value
         if not value and eventTPState.isAtEvent then
+            -- return to original position if toggled off
             if player and player.Character and player.Character.PrimaryPart and eventTPState.originalPosition then
                 local hrp = player.Character.PrimaryPart
                 local wasAnchored = hrp.Anchored
@@ -590,15 +595,26 @@ local autoTPEventToggle = EventsTab:Toggle({
     end
 })
 
+-- ✅ Event loop checks all selected events
 task.spawn(function()
     while task.wait(5) do
-        if not eventTPState.enabled or not eventTPState.selectedEvent or not player.Character or not player.Character.PrimaryPart then continue end
+        if not eventTPState.enabled or #selectedEvents == 0 or not player.Character or not player.Character.PrimaryPart then continue end
 
         local hrp = player.Character.PrimaryPart
-        local eventPart = findEventPart(eventTPState.selectedEvent)
+        local eventPart, chosenEvent
+
+        -- check each selected event
+        for _, eventName in ipairs(selectedEvents) do
+            local part = findEventPart(eventName)
+            if part then
+                eventPart = part
+                chosenEvent = eventName
+                break
+            end
+        end
 
         if eventPart and not eventTPState.isAtEvent then
-            NotifyInfo("Event Detected", "Teleporting to " .. eventTPState.selectedEvent .. "...")
+            NotifyInfo("Event Detected", "Teleporting to " .. chosenEvent .. "...")
             eventTPState.isAtEvent = true
             eventTPState.wasAutoFishing = state.AutoFish
             if eventTPState.wasAutoFishing then autoFishToggle:Set(false) end
@@ -617,10 +633,11 @@ task.spawn(function()
             if wasAnchored then hrp.Anchored = false; task.wait(0.1) end
             teleportTo(eventTPState.platform.CFrame * CFrame.new(0, 3, 0))
             if wasAnchored then task.wait(0.1); hrp.Anchored = true end
-            
-            if eventTPState.wasAutoFishing then
+
+            -- ✅ Wait 1 second then start fishing
+            task.delay(1, function()
                 autoFishToggle:Set(true)
-            end
+            end)
 
         elseif not eventPart and eventTPState.isAtEvent then
             NotifyInfo("Event Ended", "Returning to original position...")
@@ -634,6 +651,7 @@ task.spawn(function()
             teleportTo(eventTPState.originalPosition)
             if wasAnchored then task.wait(0.1); hrp.Anchored = true end
             
+            -- Resume fishing after 1s
             if eventTPState.wasAutoFishing then
                 task.wait(1)
                 autoFishToggle:Set(true)
@@ -642,7 +660,6 @@ task.spawn(function()
         end
     end
 end)
-
 
 -------------------------------------------
 ----- =======[ UTILITIES TAB ]
