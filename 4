@@ -58,6 +58,7 @@ local state = {
 local lastFarmPosition = nil
 local lastCatchTimestamp = 0
 local respawnTimerLoop = nil
+local antiAfkConnection = nil
 
 -- State for Auto TP Event feature
 local eventTPState = { enabled = false, selectedEvent = nil, originalPosition = nil, platform = nil, wasAutoFishing = false, isAtEvent = false }
@@ -92,6 +93,30 @@ end
 
 local function NotifyWarning(title, message, duration)
     WindUI:Notify({ Title = title, Content = message, Duration = duration or 5, Icon = "triangle-alert" })
+end
+
+-- =========================
+-- ANTI-AFK HANDLER
+-- =========================
+local function handleAntiAfk(enabled)
+    if enabled then
+        if antiAfkConnection then antiAfkConnection:Disconnect() end
+        
+        antiAfkConnection = player.Idled:Connect(function()
+            NotifyInfo("Anti-AFK", "Idle detected, resetting timer.")
+            local VirtualUser = game:GetService("VirtualUser")
+            VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(0.1)
+            VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end)
+        NotifySuccess("Anti-AFK", "Enabled. You will no longer be kicked for being idle.")
+    else
+        if antiAfkConnection then
+            antiAfkConnection:Disconnect()
+            antiAfkConnection = nil
+        end
+        NotifyWarning("Anti-AFK", "Disabled.")
+    end
 end
 
 -- =========================
@@ -532,55 +557,47 @@ end
 
 EventsTab:Section({ Title = "Automatic Event Teleport" })
 
-local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Shocked", "Black Hole", "Megalodon Hunt"}
+local eventNames = {"Ghost Worm", "Worm Hunt", "Shark Hunt", "Ghost Shark Hunt", "Shocked", "Black Hole", "Meteor Rain"}
 
--- ✅ Fixed recursive search
 local function findEventPart(eventName)
     local menuRingsFolder = workspace:FindFirstChild("!!! MENU RINGS")
-    if not menuRingsFolder then return nil end
+    local propsFolder = menuRingsFolder and menuRingsFolder:FindFirstChild("Props")
+    if not propsFolder then return nil end
 
-    local eventNameLower = string.lower(eventName)
+    local eventNameLower = eventName:lower()
 
-    for _, descendant in ipairs(menuRingsFolder:GetDescendants()) do
-        if descendant:IsA("TextLabel") and descendant.Name == "DisplayName" then
-            if string.lower(descendant.Text) == eventNameLower then
-                -- Go up until we find a Model with a PrimaryPart or BasePart
-                local currentAncestor = descendant.Parent
-                while currentAncestor and not currentAncestor:IsA("Model") do
-                    currentAncestor = currentAncestor.Parent
-                end
-                if currentAncestor then
-                    return currentAncestor.PrimaryPart or currentAncestor:FindFirstChildWhichIsA("BasePart")
-                end
+    for _, descendant in ipairs(propsFolder:GetDescendants()) do
+        if descendant.Name == "DisplayName" and descendant:IsA("TextLabel") and descendant.Text:lower() == eventNameLower then
+            local currentAncestor = descendant
+            while currentAncestor and currentAncestor.Parent ~= propsFolder do
+                currentAncestor = currentAncestor.Parent
+            end
+            if currentAncestor and currentAncestor.Parent == propsFolder then
+                return currentAncestor.PrimaryPart or currentAncestor:FindFirstChildWhichIsA("BasePart")
             end
         end
     end
-
+    
     return nil
 end
 
--- store multiple selected events
-local selectedEvents = {}
 
--- ✅ Multi-select dropdown
 local autoTPEventDropdown = EventsTab:Dropdown({
-    Title = "Select Events",
+    Title = "Select Event",
     Values = eventNames,
-    Multi = true,
     AllowNone = true,
-    Callback = function(values)
-        selectedEvents = values
+    Callback = function(value)
+        eventTPState.selectedEvent = value
     end
 })
 
 local autoTPEventToggle = EventsTab:Toggle({
-    Title = "Enable Auto TP to Events",
-    Desc = "Automatically teleports you to any of the selected events when they appear.",
+    Title = "Enable Auto TP to Event",
+    Desc = "Automatically teleports you to the selected event when it appears.",
     Value = false,
     Callback = function(value)
         eventTPState.enabled = value
         if not value and eventTPState.isAtEvent then
-            -- return to original position if toggled off
             if player and player.Character and player.Character.PrimaryPart and eventTPState.originalPosition then
                 local hrp = player.Character.PrimaryPart
                 local wasAnchored = hrp.Anchored
@@ -595,26 +612,15 @@ local autoTPEventToggle = EventsTab:Toggle({
     end
 })
 
--- ✅ Event loop checks all selected events
 task.spawn(function()
     while task.wait(5) do
-        if not eventTPState.enabled or #selectedEvents == 0 or not player.Character or not player.Character.PrimaryPart then continue end
+        if not eventTPState.enabled or not eventTPState.selectedEvent or not player.Character or not player.Character.PrimaryPart then continue end
 
         local hrp = player.Character.PrimaryPart
-        local eventPart, chosenEvent
-
-        -- check each selected event
-        for _, eventName in ipairs(selectedEvents) do
-            local part = findEventPart(eventName)
-            if part then
-                eventPart = part
-                chosenEvent = eventName
-                break
-            end
-        end
+        local eventPart = findEventPart(eventTPState.selectedEvent)
 
         if eventPart and not eventTPState.isAtEvent then
-            NotifyInfo("Event Detected", "Teleporting to " .. chosenEvent .. "...")
+            NotifyInfo("Event Detected", "Teleporting to " .. eventTPState.selectedEvent .. "...")
             eventTPState.isAtEvent = true
             eventTPState.wasAutoFishing = state.AutoFish
             if eventTPState.wasAutoFishing then autoFishToggle:Set(false) end
@@ -633,11 +639,10 @@ task.spawn(function()
             if wasAnchored then hrp.Anchored = false; task.wait(0.1) end
             teleportTo(eventTPState.platform.CFrame * CFrame.new(0, 3, 0))
             if wasAnchored then task.wait(0.1); hrp.Anchored = true end
-
-            -- ✅ Wait 1 second then start fishing
-            task.delay(1, function()
+            
+            if eventTPState.wasAutoFishing then
                 autoFishToggle:Set(true)
-            end)
+            end
 
         elseif not eventPart and eventTPState.isAtEvent then
             NotifyInfo("Event Ended", "Returning to original position...")
@@ -651,7 +656,6 @@ task.spawn(function()
             teleportTo(eventTPState.originalPosition)
             if wasAnchored then task.wait(0.1); hrp.Anchored = true end
             
-            -- Resume fishing after 1s
             if eventTPState.wasAutoFishing then
                 task.wait(1)
                 autoFishToggle:Set(true)
@@ -661,9 +665,18 @@ task.spawn(function()
     end
 end)
 
+
 -------------------------------------------
 ----- =======[ UTILITIES TAB ]
 -------------------------------------------
+
+UtilitiesTab:Toggle({
+    Title = "Enable Anti-AFK",
+    Desc = "Prevents you from being kicked for being idle for 20 minutes.",
+    Callback = function(value)
+        handleAntiAfk(value)
+    end
+})
 
 UtilitiesTab:Dropdown({
     Title = "Auto Buy Weather",
