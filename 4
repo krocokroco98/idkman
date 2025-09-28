@@ -341,6 +341,9 @@ local function teleportTo(posList)
     local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart")
 
     if hrp then
+        local wasAnchored = hrp.Anchored
+        if wasAnchored then hrp.Anchored = false; task.wait(0.1) end
+        
         local chosen
         if typeof(posList) == "table" then
             chosen = posList[math.random(1, #posList)]
@@ -348,6 +351,8 @@ local function teleportTo(posList)
             chosen = posList
         end
         hrp.CFrame = chosen
+        
+        if wasAnchored then task.wait(0.1); hrp.Anchored = true end
     end
 end
 
@@ -404,6 +409,7 @@ WindUI:SetNotificationLower(true)
 local Home = Window:Tab({ Title = "Developer Info", Icon = "hard-drive" })
 local Main = Window:Tab({ Title = "Main", Icon = "toggle-right" })
 local AutoFarm = Window:Tab({ Title = "Auto Farm", Icon = "map" })
+local TeleportTab = Window:Tab({ Title = "Teleport", Icon = "map-pin" })
 local EventsTab = Window:Tab({ Title = "Events", Icon = "radio-tower" })
 local UtilitiesTab = Window:Tab({ Title = "Utilities", Icon = "atom" })
 local FishNotif = Window:Tab({ Title = "Fish Notification", Icon = "bell-ring" })
@@ -552,6 +558,40 @@ for name, pos in pairs(island_locations) do
 end
 
 -------------------------------------------
+----- =======[ TELEPORT TAB ]
+-------------------------------------------
+
+local teleport_locations = {
+    ["Fisherman Island"] = CFrame.new(34, 10, 2814),
+    ["Crater Islands"] = CFrame.new(1016, 23, 5078),
+    ["Tropical Grove"] = CFrame.new(-2102, 6, 3707),
+    ["Vulcano / Kohana"] = CFrame.new(-632, 16, 599),
+    ["Coral Reefs"] = CFrame.new(-3112, 3, 2144),
+    ["Winter Fest"] = CFrame.new(1611, 4, 3280),
+    ["Lost Isle"] = CFrame.new(-3608, 5, -1292),
+    ["Esoteric Island"] = CFrame.new(3231, -1303, 1401)
+}
+
+local islandNames = {}
+for name, _ in pairs(teleport_locations) do
+    table.insert(islandNames, name)
+end
+table.sort(islandNames)
+
+TeleportTab:Section({ Title = "Island Teleport" })
+TeleportTab:Dropdown({
+    Title = "Select Island",
+    Values = islandNames,
+    AllowNone = true,
+    Callback = function(selectedName)
+        if teleport_locations[selectedName] then
+            teleportTo(teleport_locations[selectedName])
+            NotifySuccess("Teleport", "Teleported to " .. selectedName)
+        end
+    end
+})
+
+-------------------------------------------
 ----- =======[ EVENTS TAB ]
 -------------------------------------------
 
@@ -698,15 +738,6 @@ UtilitiesTab:Dropdown({
                 autoBuyWeather(weatherType)
             end
         end
-    end
-})
-
-UtilitiesTab:Button({
-    Title = "Teleport to Esoteric Island",
-    Callback = function()
-        local esotericPosition = CFrame.new(3231, -1303, 1401)
-        teleportTo(esotericPosition)
-        NotifySuccess("Teleport", "Moving to Esoteric Island...")
     end
 })
 
@@ -1078,11 +1109,3 @@ local function applyLoadedState()
         
         state.AutoFish = true
         autoFishToggle:Set(true)
-    elseif savedData.autoFish then
-       state.AutoFish = true
-       autoFishToggle:Set(true)
-    end
-end
-
-loadConfig()
-applyLoadedState()
